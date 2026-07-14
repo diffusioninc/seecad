@@ -15,7 +15,13 @@ from seecad.assembly_lint import (
     render_assembly_lint_text,
 )
 from seecad.config import get_settings
-from seecad.errors import SeeCADError
+from seecad.errors import AnalysisError, SeeCADError
+from seecad.mesh_lint import (
+    MAX_MESH_BYTES,
+    lint_mesh_bytes,
+    mesh_format_from_path,
+    render_mesh_lint_text,
+)
 from seecad.models import (
     AssemblyComponent,
     CompareRequest,
@@ -28,6 +34,7 @@ from seecad.models import (
     NegativeFeature,
     NegativeIntent,
     PositiveSolid,
+    PrintProfile,
     RoundedBox,
     ToolAccessChannel,
     Transform,
@@ -63,6 +70,14 @@ def _fail(exc: SeeCADError) -> None:
         err=True,
     )
     raise typer.Exit(code=1) from exc
+
+
+def _invalid(code: str, message: str, *, details: object | None = None) -> None:
+    error: dict[str, object] = {"code": code, "message": message}
+    if details is not None:
+        error["details"] = details
+    _emit({"status": "invalid", "error": error})
+    raise typer.Exit(code=2)
 
 
 @app.command()
@@ -130,6 +145,108 @@ def lint_schema() -> None:
     """Print the JSON Schema accepted by `seecad lint`."""
 
     _emit(AssemblyLintSpec.model_json_schema())
+
+
+@app.command("mesh-lint")
+def mesh_lint(
+    mesh: Annotated[
+        Path,
+        typer.Argument(exists=True, dir_okay=False, help="One standalone mesh file."),
+    ],
+    units: Annotated[
+        str,
+        typer.Option(
+            help=(
+                "Explicit report units; must be mm. Unitless coordinates are asserted mm and "
+                "embedded units are normalized."
+            )
+        ),
+    ],
+    profile: Annotated[
+        Path,
+        typer.Option(
+            "--profile",
+            exists=True,
+            dir_okay=False,
+            help="PrintProfile JSON used for bounded and heuristic checks.",
+        ),
+    ],
+    output_format: Annotated[
+        str,
+        typer.Option("--format", "-f", help="Output format: json or text."),
+    ] = "json",
+    fail_on: Annotated[
+        str,
+        typer.Option(help="Exit 1 at this severity: error or warning."),
+    ] = "error",
+    orientation_candidates: Annotated[
+        int,
+        typer.Option(
+            min=1,
+            max=24,
+            help="Number of ranked axis-aligned orientations to return.",
+        ),
+    ] = 6,
+) -> None:
+    """Lint one millimetre mesh without treating it as semantic design authority."""
+
+    if output_format not in {"json", "text"} or fail_on not in {"error", "warning"}:
+        _invalid(
+            "invalid_mesh_lint_option",
+            "--format must be json or text; --fail-on must be error or warning",
+        )
+    if units != "mm":
+        _invalid(
+            "invalid_mesh_units",
+            "--units must explicitly be mm; only embedded source-unit metadata is normalized",
+            details={"provided_units": units},
+        )
+    try:
+        size_bytes = mesh.stat().st_size
+        if size_bytes > MAX_MESH_BYTES:
+            raise AnalysisError(
+                "mesh exceeds the standalone lint input limit",
+                details={"size_bytes": size_bytes, "limit_bytes": MAX_MESH_BYTES},
+            )
+        parsed_profile = PrintProfile.model_validate_json(profile.read_text(encoding="utf-8"))
+        report = lint_mesh_bytes(
+            mesh.read_bytes(),
+            filename=mesh.name,
+            mesh_format=mesh_format_from_path(mesh),
+            profile=parsed_profile,
+            orientation_limit=orientation_candidates,
+        )
+    except ValidationError as exc:
+        _invalid(
+            "invalid_print_profile",
+            f"Could not validate print profile {profile}",
+            details=exc.errors(include_url=False, include_input=False),
+        )
+    except (OSError, UnicodeError) as exc:
+        _invalid(
+            "mesh_lint_input_error",
+            "Could not read the mesh or print profile",
+            details={"type": type(exc).__name__, "message": str(exc)},
+        )
+    except AnalysisError as exc:
+        _invalid(exc.code, exc.message, details=exc.details)
+
+    if output_format == "text":
+        typer.echo(render_mesh_lint_text(report))
+    else:
+        _emit(report)
+    threshold_reached = report.summary.error_count > 0 or (
+        fail_on == "warning" and report.summary.warning_count > 0
+    )
+    if threshold_reached:
+        raise typer.Exit(code=1)
+
+
+@app.command("mesh-lint-profile-schema")
+def mesh_lint_profile_schema() -> None:
+    """Print the JSON Schema required by `seecad mesh-lint --profile`."""
+
+    _emit(PrintProfile.model_json_schema())
 
 
 @app.command()

@@ -227,6 +227,24 @@ which tool/placement details are heuristic. It demonstrates:
 - one linked cone per fastener; and
 - a passing report that remains explicitly bounded rather than guaranteed.
 
+## Deliberate problem fixtures
+
+Three checked synthetic manifests exercise supported failure modes without
+committing source CAD or generated lint reports:
+
+- [Blocked top-cover fastener](../examples/blocked_top_cover_fastener/README.md) has one FDM
+  sensor-pod screw whose only declared approach may intersect a cable bridge.
+- [Blocked alternative approaches](../examples/blocked_alternative_approaches/README.md) gives a
+  CNC fixture bolt two approaches; both may intersect separately named installed hardware.
+- [Mixed service-panel access](../examples/mixed_service_panel_access/README.md) expands two
+  repeated screws and shows that one clear instance does not hide its blocked sibling.
+
+Each manifest is schema-valid, declares millimetres, expands every physical
+instance, and gives every fastener at least one cone. Their expected failures
+are bounded tool-access findings. They are not minimum-wall examples: the mesh
+analyzer currently labels minimum wall thickness `unavailable`, and the
+assembly manifest does not model manufacturing process or local wall geometry.
+
 ## Agent definition of done
 
 Before claiming an assembly-lint task complete, verify all of the following:

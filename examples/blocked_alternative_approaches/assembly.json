@@ -1,0 +1,92 @@
+{
+  "schema_version": "1.0",
+  "name": "CNC fixture with all clamp-bolt approaches blocked",
+  "intent": "Represent a synthetic machining fixture whose straight and angled driver approaches are each obstructed by installed machine hardware.",
+  "units": "mm",
+  "parts": [
+    {
+      "id": "fixture_plate",
+      "name": "Machined fixture plate",
+      "kind": "part",
+      "purpose": "Locate the workpiece and carry the clamp bolt",
+      "part_number": "CNC-FIXTURE-PLATE",
+      "envelope": {
+        "minimum": {"x": -20, "y": -35, "z": -8},
+        "maximum": {"x": 0, "y": 5, "z": 8}
+      }
+    },
+    {
+      "id": "clamp_bolt",
+      "name": "Fixture clamp bolt",
+      "kind": "fastener",
+      "purpose": "Clamp the workpiece against the fixture datum",
+      "part_number": "M8x30",
+      "envelope": {
+        "minimum": {"x": 0, "y": -2, "z": -2},
+        "maximum": {"x": 10, "y": 2, "z": 2}
+      },
+      "fastener": {
+        "designation": "M8x30 socket-head cap screw",
+        "drive": "6 mm hex key",
+        "confidence": "exact",
+        "basis": "Declared by the authored BOM for this synthetic failure fixture."
+      }
+    },
+    {
+      "id": "fixed_splash_guard",
+      "name": "Fixed splash guard",
+      "kind": "part",
+      "purpose": "Protect the operator from coolant and chips",
+      "part_number": "MACHINE-GUARD",
+      "envelope": {
+        "minimum": {"x": 24, "y": -2, "z": -8},
+        "maximum": {"x": 30, "y": 2, "z": 8}
+      }
+    },
+    {
+      "id": "vise_column",
+      "name": "Vise support column",
+      "kind": "part",
+      "purpose": "Support the installed vise beside the fixture plate",
+      "part_number": "VISE-COLUMN",
+      "envelope": {
+        "minimum": {"x": 17, "y": 7, "z": -8},
+        "maximum": {"x": 24, "y": 18, "z": 8}
+      }
+    }
+  ],
+  "tool_access_cones": [
+    {
+      "id": "clamp_bolt_straight_driver",
+      "name": "Clamp bolt straight driver approach",
+      "fastener_id": "clamp_bolt",
+      "tip": {"x": 10, "y": 0, "z": 0},
+      "axis": {"x": 1, "y": 0, "z": 0},
+      "reach_mm": 60,
+      "tool_diameter_mm": 6,
+      "clearance_mm": 0.75,
+      "approach_half_angle_degrees": 2,
+      "tool": "6 mm hex key",
+      "rationale": "The nominal straight approach runs into the fixed splash guard."
+    },
+    {
+      "id": "clamp_bolt_angled_driver",
+      "name": "Clamp bolt angled driver approach",
+      "fastener_id": "clamp_bolt",
+      "tip": {"x": 10, "y": 0, "z": 0},
+      "axis": {"x": 1, "y": 1, "z": 0},
+      "reach_mm": 60,
+      "tool_diameter_mm": 6,
+      "clearance_mm": 0.75,
+      "approach_half_angle_degrees": 2,
+      "tool": "6 mm ball-end hex key",
+      "rationale": "The alternative diagonal approach runs into the installed vise support column."
+    }
+  ],
+  "assumptions": [
+    "This is an authored synthetic failure fixture; it does not represent downloaded or external source CAD.",
+    "The fixture plate is described as CNC-machined, but this fixture checks tool access only and makes no machining-feasibility claim.",
+    "Every envelope is an intentionally conservative axis-aligned proxy in millimetres.",
+    "The two tool approaches are authored alternatives; flexible tools, disassembly, and machine motion are outside this static check."
+  ]
+}

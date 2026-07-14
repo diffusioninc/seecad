@@ -4,6 +4,7 @@ import json
 from copy import deepcopy
 from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from seecad.assembly_lint import AssemblyLintSpec, lint_assembly
@@ -196,6 +197,73 @@ def test_robot_arm_reference_manifest_is_a_passing_instance_register() -> None:
         "connector_straight.stp",
         "connector_corner.stp",
     }
+
+
+@pytest.mark.parametrize(
+    (
+        "fixture",
+        "expected_part_count",
+        "expected_accessibility",
+        "expected_cone_blockers",
+        "expected_diagnostic_codes",
+    ),
+    [
+        (
+            "blocked_top_cover_fastener",
+            3,
+            {"rear_mount_screw": "blocked"},
+            {"rear_mount_screw_driver": ("cable_bridge",)},
+            ["tool_cone_possible_obstruction", "fastener_not_tool_accessible"],
+        ),
+        (
+            "blocked_alternative_approaches",
+            4,
+            {"clamp_bolt": "blocked"},
+            {
+                "clamp_bolt_straight_driver": ("fixed_splash_guard",),
+                "clamp_bolt_angled_driver": ("vise_column",),
+            },
+            [
+                "tool_cone_possible_obstruction",
+                "tool_cone_possible_obstruction",
+                "fastener_not_tool_accessible",
+            ],
+        ),
+        (
+            "mixed_service_panel_access",
+            4,
+            {"panel_screw_left": "blocked", "panel_screw_right": "clear"},
+            {
+                "panel_screw_left_driver": ("installed_cable_tray",),
+                "panel_screw_right_driver": (),
+            },
+            ["tool_cone_possible_obstruction", "fastener_not_tool_accessible"],
+        ),
+    ],
+)
+def test_problem_assembly_fixtures_surface_expected_access_failures(
+    fixture: str,
+    expected_part_count: int,
+    expected_accessibility: dict[str, str],
+    expected_cone_blockers: dict[str, tuple[str, ...]],
+    expected_diagnostic_codes: list[str],
+) -> None:
+    path = Path("examples") / fixture / "assembly.json"
+    spec = AssemblyLintSpec.model_validate_json(path.read_text())
+
+    report = lint_assembly(spec)
+
+    assert report.summary.status == "fail"
+    assert report.summary.part_count == expected_part_count
+    assert report.summary.unchecked_fastener_count == 0
+    assert {item.part_id: item.accessibility for item in report.fasteners} == (
+        expected_accessibility
+    )
+    assert all(item.tool_cone_ids for item in report.fasteners)
+    assert {item.cone_id: item.blocker_part_ids for item in report.tool_access_cones} == (
+        expected_cone_blockers
+    )
+    assert [item.code for item in report.diagnostics] == expected_diagnostic_codes
 
 
 def test_agent_contract_mandates_the_assembly_lint_route() -> None:

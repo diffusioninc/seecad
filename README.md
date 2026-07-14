@@ -62,6 +62,7 @@ The central inspection flow remains available on a narrow screen; project detail
 - Hardened OpenSCAD engines with time, memory, CPU, PID, network, path, and output bounds. Host development defaults to an ephemeral Docker invocation; Compose uses a dedicated no-network worker over a Unix-domain socket.
 - STL/3MF compilation and a live six-camera inspection rig backed by the compiled STL.
 - Mesh and DFM evidence: triangle and vertex counts, bounded degenerate-triangle detection, bounds, area, volume, components, watertightness, winding consistency, configured build-volume fit, and face-normal overhang burden. Checks that are not actually solved, such as minimum wall thickness, are returned as unavailable.
+- Standalone single-mesh linting for STL, OBJ, PLY, OFF, GLB, and 3MF, with an explicit millimetre declaration, content digest, print-profile evidence, and ranked non-mutating axis-aligned orientation candidates.
 - Canonical print-profile evidence and immutable human approval attestations that preserve the exact spec, mesh, compile report, and analysis digest chain.
 - Explicit `exact`, `bounded`, and `heuristic` confidence labels on findings.
 - OpenAI Responses planner using current `gpt-5.6`, structured outputs, original-detail image evidence, pro mode, and max reasoning by default.
@@ -129,6 +130,40 @@ The [6DoF robot-arm fixture](examples/6dof_robot_arm/README.md) records the
 published base, small-drive, big-drive, and connector modules, including the
 illustrated M2.5, M3, and M4 fasteners. It keeps source-backed designations
 separate from heuristic drive-tool and approach assumptions.
+
+Checked problem fixtures exercise failure behavior without committing source
+CAD or generated reports:
+
+| Fixture | Expected bounded result |
+| --- | --- |
+| [Blocked top-cover fastener](examples/blocked_top_cover_fastener/README.md) | One FDM sensor-pod screw has no clear declared approach. |
+| [Blocked alternative approaches](examples/blocked_alternative_approaches/README.md) | Both straight and angled approaches to a CNC fixture bolt are obstructed. |
+| [Mixed service-panel access](examples/mixed_service_panel_access/README.md) | One repeated gearbox-panel screw is clear and one is blocked. |
+
+Minimum wall thickness is not used as a negative fixture because the current
+mesh analyzer labels that property `unavailable`; these examples only claim the
+tool-access findings the assembly linter can actually produce.
+
+### Standalone mesh linting
+
+For one imported mesh—not an assembly—run topology and print-orientation preflight without
+creating a `DesignSpec` or changing the source file:
+
+```bash
+uv run seecad mesh-lint model.stl \
+  --units mm \
+  --profile examples/mesh_lint/fdm-profile.json
+uv run seecad mesh-lint model.stl \
+  --units mm \
+  --profile examples/mesh_lint/fdm-profile.json \
+  --format text --fail-on warning
+```
+
+The report evaluates all 24 rigid axis-aligned orientations and returns the best six by default.
+Exact parsed-mesh facts remain separate from bounded build-volume fit and heuristic face-normal
+overhang ranking. It does not run a slicer, repair the model, guess units, prove minimum wall
+thickness, or substitute for the mandatory assembly manifest workflow. See the
+[standalone mesh-lint contract](docs/MESH-LINT.md).
 
 ### Model-backed design
 
@@ -205,6 +240,7 @@ vendor/NopSCADlib/      complete pinned upstream library
 docker/                 isolated OpenSCAD worker
 docs/ARCHITECTURE.md    data flow and trust boundaries
 docs/ASSEMBLY-LINT.md   mandatory existing-assembly agent workflow and trust contract
+docs/MESH-LINT.md       standalone single-mesh topology and orientation workflow
 docs/SECURITY.md        untrusted-code sandbox contract
 docs/GCODE.md           planned slicer and motion evidence adapter
 ```

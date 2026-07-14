@@ -1,0 +1,14 @@
+{
+  "process": "fdm",
+  "material": "PETG",
+  "nozzle_diameter": 0.4,
+  "layer_height": 0.2,
+  "minimum_wall": 1.2,
+  "minimum_clearance": 0.3,
+  "maximum_unsupported_overhang_degrees": 45,
+  "build_volume": {
+    "x": 220,
+    "y": 220,
+    "z": 250
+  }
+}

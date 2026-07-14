@@ -48,6 +48,11 @@ The checked reference is
 source/assumption separation demonstrated there, and never commit downloaded source CAD or lint
 output.
 
+For a single standalone mesh outside assembly scope, agents may use the read-only workflow in
+[docs/MESH-LINT.md](docs/MESH-LINT.md). `mesh-lint` never satisfies an assembly inspection request:
+disconnected shells are not a physical-instance inventory, and multi-instance scene files must be
+routed to the assembly manifest workflow above.
+
 ## Verification
 
 Run `make check` for normal changes. Engine or container changes also require `make integration`. UI changes require `make web-check` and a browser screenshot review at desktop and mobile widths.

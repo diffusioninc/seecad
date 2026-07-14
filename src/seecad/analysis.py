@@ -6,7 +6,7 @@ import hashlib
 import io
 import math
 from datetime import UTC, datetime
-from typing import cast
+from typing import Any, cast
 
 from pydantic import JsonValue
 
@@ -22,6 +22,66 @@ from seecad.models import (
 )
 
 
+def load_triangle_mesh(content: bytes, *, file_type: str) -> Any:
+    """Parse one mesh instance without flattening an imported assembly scene."""
+
+    if not content:
+        raise AnalysisError("cannot analyze an empty mesh")
+    try:
+        import trimesh
+
+        loaded = trimesh.load(io.BytesIO(content), file_type=file_type, process=True)
+        if isinstance(loaded, trimesh.Scene):
+            geometry_nodes = tuple(loaded.graph.nodes_geometry)
+            if len(loaded.geometry) != 1 or len(geometry_nodes) != 1:
+                raise AnalysisError(
+                    "mesh lint accepts one mesh instance; use assembly lint for a multi-part scene",
+                    details={
+                        "geometry_count": len(loaded.geometry),
+                        "instance_count": len(geometry_nodes),
+                        "required_workflow": "seecad lint",
+                    },
+                )
+            mesh = loaded.to_geometry()
+        else:
+            mesh = loaded
+        if not isinstance(mesh, trimesh.Trimesh) or len(mesh.faces) == 0:
+            raise AnalysisError("artifact does not contain a non-empty triangle mesh")
+        return mesh
+    except AnalysisError:
+        raise
+    except Exception as exc:
+        raise AnalysisError(
+            f"failed to parse {file_type.upper()} mesh",
+            details={"format": file_type, "reason": type(exc).__name__},
+        ) from exc
+
+
+def downward_overhang_area_ratio(
+    mesh: Any,
+    *,
+    maximum_unsupported_overhang_degrees: float,
+) -> float:
+    """Return a face-normal support proxy while excluding build-plate contact faces."""
+
+    import numpy as np
+
+    face_areas = np.asarray(mesh.area_faces)
+    if not len(face_areas) or not float(mesh.area):
+        return 0.0
+    vertices = np.asarray(mesh.vertices)
+    faces = np.asarray(mesh.faces)
+    normals = np.asarray(mesh.face_normals)
+    extents = np.asarray(mesh.extents)
+    minimum_z = float(vertices[:, 2].min())
+    build_plate_tolerance = max(float(extents.max()) * 1e-9, float(np.finfo(float).eps))
+    face_z = vertices[faces][:, :, 2]
+    on_build_plate = np.all(face_z <= minimum_z + build_plate_tolerance, axis=1)
+    threshold = -math.cos(math.radians(90 - maximum_unsupported_overhang_degrees))
+    downward_area = float(face_areas[(normals[:, 2] < threshold) & ~on_build_plate].sum())
+    return downward_area / float(mesh.area)
+
+
 class MeshAnalyzer:
     def analyze_stl(
         self,
@@ -30,22 +90,34 @@ class MeshAnalyzer:
         profile: PrintProfile,
         mesh_sha256: str | None = None,
     ) -> MeshAnalysis:
-        if not content:
-            raise AnalysisError("cannot analyze an empty mesh")
-        try:
-            import numpy as np
-            import trimesh
+        return self.analyze_mesh(
+            content,
+            file_type="stl",
+            profile=profile,
+            mesh_sha256=mesh_sha256,
+        )
 
-            loaded = trimesh.load(io.BytesIO(content), file_type="stl", force="mesh")
-            mesh = loaded.to_geometry() if isinstance(loaded, trimesh.Scene) else loaded
-            if not isinstance(mesh, trimesh.Trimesh) or len(mesh.faces) == 0:
-                raise AnalysisError("artifact does not contain a non-empty triangle mesh")
-        except AnalysisError:
-            raise
-        except Exception as exc:
-            raise AnalysisError("failed to parse STL mesh") from exc
-
+    def analyze_mesh(
+        self,
+        content: bytes,
+        *,
+        file_type: str,
+        profile: PrintProfile,
+        mesh_sha256: str | None = None,
+    ) -> MeshAnalysis:
+        mesh = load_triangle_mesh(content, file_type=file_type)
         digest = mesh_sha256 or hashlib.sha256(content).hexdigest()
+        return self.analyze_loaded_mesh(mesh, profile=profile, mesh_sha256=digest)
+
+    def analyze_loaded_mesh(
+        self,
+        mesh: Any,
+        *,
+        profile: PrintProfile,
+        mesh_sha256: str,
+    ) -> MeshAnalysis:
+        import numpy as np
+
         extents = [float(value) for value in mesh.extents]
         watertight = bool(mesh.is_watertight)
         winding = bool(mesh.is_winding_consistent)
@@ -139,16 +211,19 @@ class MeshAnalyzer:
             )
         )
 
-        normals = np.asarray(mesh.face_normals)
-        threshold = -math.cos(math.radians(90 - profile.maximum_unsupported_overhang_degrees))
-        downward_area = float(face_areas[normals[:, 2] < threshold].sum())
-        overhang_ratio = downward_area / float(mesh.area) if mesh.area else 0.0
+        overhang_ratio = downward_overhang_area_ratio(
+            mesh,
+            maximum_unsupported_overhang_degrees=(profile.maximum_unsupported_overhang_degrees),
+        )
         measurements.append(
             Measurement(
                 name="downward_overhang_area_ratio",
                 value=overhang_ratio,
                 confidence=Confidence.HEURISTIC,
-                basis="downward face normals in the current build orientation",
+                basis=(
+                    "downward face normals excluding faces on the current build plate; "
+                    "no slicer or bridge solve was performed"
+                ),
             )
         )
         measurements.append(
@@ -250,7 +325,7 @@ class MeshAnalyzer:
             else "No blocking topology finding detected; process fit remains bounded and heuristic."
         )
         return MeshAnalysis(
-            mesh_sha256=digest,
+            mesh_sha256=mesh_sha256,
             print_profile=profile,
             print_profile_sha256=print_profile_sha256(profile),
             analyzed_at=datetime.now(UTC),

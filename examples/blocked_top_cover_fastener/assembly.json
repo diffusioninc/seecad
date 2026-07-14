@@ -1,0 +1,68 @@
+{
+  "schema_version": "1.0",
+  "name": "FDM sensor pod with a blocked mounting screw",
+  "intent": "Represent a synthetic printed sensor pod whose only declared driver approach is obstructed by a fixed cable bridge.",
+  "units": "mm",
+  "parts": [
+    {
+      "id": "sensor_pod_body",
+      "name": "Printed sensor pod body",
+      "kind": "part",
+      "purpose": "House the sensor electronics and support the rear mounting screw",
+      "part_number": "FDM-SENSOR-POD-BODY",
+      "envelope": {
+        "minimum": {"x": -30, "y": -20, "z": -8},
+        "maximum": {"x": 30, "y": 20, "z": 0}
+      }
+    },
+    {
+      "id": "rear_mount_screw",
+      "name": "Rear mounting screw",
+      "kind": "fastener",
+      "purpose": "Retain the sensor pod on its mounting plate",
+      "part_number": "M3x12",
+      "envelope": {
+        "minimum": {"x": -2, "y": -2, "z": 0},
+        "maximum": {"x": 2, "y": 2, "z": 8}
+      },
+      "fastener": {
+        "designation": "M3x12 socket-head cap screw",
+        "drive": "2.5 mm hex key",
+        "confidence": "exact",
+        "basis": "Declared by the authored BOM for this synthetic failure fixture."
+      }
+    },
+    {
+      "id": "cable_bridge",
+      "name": "Fixed cable bridge",
+      "kind": "part",
+      "purpose": "Route the installed harness above the mounting screw",
+      "part_number": "FDM-CABLE-BRIDGE",
+      "envelope": {
+        "minimum": {"x": -25, "y": -15, "z": 18},
+        "maximum": {"x": 25, "y": 15, "z": 22}
+      }
+    }
+  ],
+  "tool_access_cones": [
+    {
+      "id": "rear_mount_screw_driver",
+      "name": "Rear mounting screw vertical driver approach",
+      "fastener_id": "rear_mount_screw",
+      "tip": {"x": 0, "y": 0, "z": 8},
+      "axis": {"x": 0, "y": 0, "z": 1},
+      "reach_mm": 45,
+      "tool_diameter_mm": 5,
+      "clearance_mm": 0.75,
+      "approach_half_angle_degrees": 2,
+      "tool": "2.5 mm hex key",
+      "rationale": "The screw drive faces upward, but the installed cable bridge occupies the required approach envelope."
+    }
+  ],
+  "assumptions": [
+    "This is an authored synthetic failure fixture; it does not represent downloaded or external source CAD.",
+    "The sensor pod body and cable bridge are described as FDM parts, but this fixture checks tool access only and makes no printability claim.",
+    "Every envelope is an intentionally conservative axis-aligned proxy in millimetres.",
+    "The expected obstruction is bounded evidence, not proof of exact physical interference."
+  ]
+}

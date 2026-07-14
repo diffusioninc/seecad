@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "name": "Gearbox service panel with one inaccessible screw",
+  "intent": "Represent a synthetic service panel where one repeated screw remains accessible while its sibling is obstructed by an installed cable tray.",
+  "units": "mm",
+  "parts": [
+    {
+      "id": "service_panel",
+      "name": "Gearbox service panel",
+      "kind": "part",
+      "purpose": "Close the gearbox inspection opening",
+      "part_number": "GEARBOX-SERVICE-PANEL",
+      "envelope": {
+        "minimum": {"x": -30, "y": -20, "z": -6},
+        "maximum": {"x": 30, "y": 20, "z": 0}
+      }
+    },
+    {
+      "id": "panel_screw_left",
+      "name": "Left service-panel screw",
+      "kind": "fastener",
+      "purpose": "Retain the left side of the service panel",
+      "part_number": "M4x12",
+      "envelope": {
+        "minimum": {"x": -17, "y": -2, "z": 0},
+        "maximum": {"x": -13, "y": 2, "z": 8}
+      },
+      "fastener": {
+        "designation": "M4x12 socket-head cap screw",
+        "drive": "3 mm hex key",
+        "confidence": "exact",
+        "basis": "Declared by the authored BOM for this synthetic failure fixture."
+      }
+    },
+    {
+      "id": "panel_screw_right",
+      "name": "Right service-panel screw",
+      "kind": "fastener",
+      "purpose": "Retain the right side of the service panel",
+      "part_number": "M4x12",
+      "envelope": {
+        "minimum": {"x": 13, "y": -2, "z": 0},
+        "maximum": {"x": 17, "y": 2, "z": 8}
+      },
+      "fastener": {
+        "designation": "M4x12 socket-head cap screw",
+        "drive": "3 mm hex key",
+        "confidence": "exact",
+        "basis": "Declared by the authored BOM for this synthetic failure fixture."
+      }
+    },
+    {
+      "id": "installed_cable_tray",
+      "name": "Installed cable tray",
+      "kind": "part",
+      "purpose": "Carry the gearbox feedback and motor cables above the left screw",
+      "part_number": "GEARBOX-CABLE-TRAY",
+      "envelope": {
+        "minimum": {"x": -22, "y": -8, "z": 18},
+        "maximum": {"x": -8, "y": 8, "z": 25}
+      }
+    }
+  ],
+  "tool_access_cones": [
+    {
+      "id": "panel_screw_left_driver",
+      "name": "Left service-panel screw driver approach",
+      "fastener_id": "panel_screw_left",
+      "tip": {"x": -15, "y": 0, "z": 8},
+      "axis": {"x": 0, "y": 0, "z": 1},
+      "reach_mm": 45,
+      "tool_diameter_mm": 5,
+      "clearance_mm": 0.75,
+      "approach_half_angle_degrees": 2,
+      "tool": "3 mm hex key",
+      "rationale": "The nominal upward approach is occupied by the installed cable tray."
+    },
+    {
+      "id": "panel_screw_right_driver",
+      "name": "Right service-panel screw driver approach",
+      "fastener_id": "panel_screw_right",
+      "tip": {"x": 15, "y": 0, "z": 8},
+      "axis": {"x": 0, "y": 0, "z": 1},
+      "reach_mm": 45,
+      "tool_diameter_mm": 5,
+      "clearance_mm": 0.75,
+      "approach_half_angle_degrees": 2,
+      "tool": "3 mm hex key",
+      "rationale": "The right screw has an unobstructed upward service approach in the declared arrangement."
+    }
+  ],
+  "assumptions": [
+    "This is an authored synthetic failure fixture; it does not represent downloaded or external source CAD.",
+    "The two repeated M4 screws are expanded into separate physical instances with separate access checks.",
+    "Every envelope is an intentionally conservative axis-aligned proxy in millimetres.",
+    "A clear result for the right screw remains bounded and does not prove physical access or fit."
+  ]
+}
