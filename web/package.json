@@ -2,6 +2,7 @@
   "name": "seecad-web",
   "private": true,
   "version": "0.1.0",
+  "license": "MIT",
   "packageManager": "pnpm@10.28.1",
   "engines": {
     "node": ">=24",

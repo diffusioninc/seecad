@@ -44,6 +44,7 @@ export default function ImportAssemblyApp() {
     (next: ImportedAssemblyMetrics) => setMetrics(next),
     [],
   );
+  const onRigError = useCallback((message: string) => setError(message), []);
 
   const openFiles = async (files: FileList | File[]) => {
     setLoading(true);
@@ -299,6 +300,7 @@ export default function ImportAssemblyApp() {
                 showEdges={showEdges}
                 upAxis={upAxis}
                 onMetrics={onMetrics}
+                onError={onRigError}
               />
             ) : (
               <div className="import-empty">

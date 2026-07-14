@@ -285,4 +285,8 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md) for the invari
 
 ## License
 
-SeeCAD is GPL-3.0-or-later. The vendored NopSCADlib tree retains its upstream `COPYING` file and exact upstream provenance in `vendor/NopSCADlib.UPSTREAM.json`.
+SeeCAD-authored code and documentation are licensed under the [MIT License](LICENSE).
+Third-party components retain their own licenses. In particular, the vendored NopSCADlib
+tree remains GPL-3.0-or-later; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), its
+upstream [`COPYING`](vendor/NopSCADlib/COPYING), and the exact pinned provenance in
+[`vendor/NopSCADlib.UPSTREAM.json`](vendor/NopSCADlib.UPSTREAM.json).

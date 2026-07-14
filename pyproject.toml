@@ -7,7 +7,7 @@ name = "seecad"
 version = "0.1.0"
 description = "Semantic, AI-assisted CAD orchestration for deterministic OpenSCAD models"
 requires-python = ">=3.12"
-license = "GPL-3.0-or-later"
+license = "MIT"
 dependencies = [
   "fastapi>=0.115,<1",
   "httpx>=0.28,<1",

@@ -26,6 +26,7 @@ interface ImportedAssemblyRigProps {
   showEdges: boolean;
   upAxis: "z" | "y";
   onMetrics: (metrics: ImportedAssemblyMetrics) => void;
+  onError: (message: string) => void;
 }
 
 function mimeType(path: string): string {
@@ -72,6 +73,7 @@ export function ImportedAssemblyRig({
   showEdges,
   upAxis,
   onMetrics,
+  onError,
 }: ImportedAssemblyRigProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -127,30 +129,47 @@ export function ImportedAssemblyRig({
     const assembly = new THREE.Group();
     assembly.name = "imported-assembly-preview";
     let objectRecords = 0;
-    for (const objectPath of archive.objectPaths) {
-      const objectText = decodeArchiveText(archive, objectPath);
-      objectRecords += [...objectText.matchAll(/^o\s+.+$/gim)].length;
-      const loader = new OBJLoader(loadingManager);
-      const materialPath = materialLibraryReferences(objectText)
-        .map((reference) => resolveArchiveReference(objectPath, reference))
-        .find((candidate) => archive.entries.has(candidate));
-      if (materialPath) {
-        const materialText = decodeArchiveText(archive, materialPath);
-        const materials = new MTLLoader(loadingManager).parse(
-          materialText,
-          archiveDirectory(materialPath),
-        );
-        materials.preload();
-        loader.setMaterials(materials);
+    try {
+      for (const objectPath of archive.objectPaths) {
+        const objectText = decodeArchiveText(archive, objectPath);
+        objectRecords += [...objectText.matchAll(/^o\s+.+$/gim)].length;
+        const loader = new OBJLoader(loadingManager);
+        const materialPath = materialLibraryReferences(objectText)
+          .map((reference) => resolveArchiveReference(objectPath, reference))
+          .find((candidate) => archive.entries.has(candidate));
+        if (materialPath) {
+          const materialText = decodeArchiveText(archive, materialPath);
+          const materials = new MTLLoader(loadingManager).parse(
+            materialText,
+            archiveDirectory(materialPath),
+          );
+          materials.preload();
+          loader.setMaterials(materials);
+        }
+        const object = loader.parse(objectText);
+        object.name = objectPath;
+        assembly.add(object);
       }
-      const object = loader.parse(objectText);
-      object.name = objectPath;
-      assembly.add(object);
+    } catch (failure) {
+      onError(
+        failure instanceof Error
+          ? failure.message
+          : "OBJ geometry could not be parsed.",
+      );
+      controls.dispose();
+      renderer.dispose();
+      for (const url of objectUrls.values()) URL.revokeObjectURL(url);
+      return;
     }
 
     const sourceBounds = new THREE.Box3().setFromObject(assembly);
-    if (sourceBounds.isEmpty())
-      throw new Error("OBJ files contain no displayable triangle geometry.");
+    if (sourceBounds.isEmpty()) {
+      onError("OBJ files contain no displayable triangle geometry.");
+      controls.dispose();
+      renderer.dispose();
+      for (const url of objectUrls.values()) URL.revokeObjectURL(url);
+      return;
+    }
     const sourceCenter = sourceBounds.getCenter(new THREE.Vector3());
     const sourceSize = sourceBounds.getSize(new THREE.Vector3());
     assembly.position.copy(sourceCenter).multiplyScalar(-1);
@@ -205,10 +224,11 @@ export function ImportedAssemblyRig({
     const fitView = () => {
       camera.near = Math.max(radius / 250, 0.05);
       camera.far = radius * 50;
+      const narrowCanvasCompensation = 1 / Math.min(camera.aspect, 1);
       camera.position
         .set(1.35, 1.02, 1.48)
         .normalize()
-        .multiplyScalar(radius * 2.4);
+        .multiplyScalar(radius * 2.65 * narrowCanvasCompensation);
       camera.updateProjectionMatrix();
       controls.target.set(0, 0, 0);
       controls.minDistance = radius * 0.3;
@@ -234,6 +254,7 @@ export function ImportedAssemblyRig({
       renderer.setSize(width, height, false);
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
+      fitView();
     };
     const resizeObserver = new ResizeObserver(resize);
     if (canvas.parentElement) resizeObserver.observe(canvas.parentElement);
@@ -260,7 +281,7 @@ export function ImportedAssemblyRig({
       renderer.dispose();
       for (const url of objectUrls.values()) URL.revokeObjectURL(url);
     };
-  }, [archive, onMetrics, showEdges, upAxis]);
+  }, [archive, onError, onMetrics, showEdges, upAxis]);
 
   return (
     <canvas

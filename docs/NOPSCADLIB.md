@@ -1,6 +1,10 @@
 # Vendored NopSCADlib
 
-The complete upstream tracked tree is stored at `vendor/NopSCADlib`. See `vendor/NopSCADlib.UPSTREAM.json` for the pinned commit and fetch date. The upstream `COPYING` file is preserved unchanged.
+The complete upstream tracked tree is stored at `vendor/NopSCADlib`. See
+`vendor/NopSCADlib.UPSTREAM.json` for the pinned commit and fetch date. NopSCADlib remains
+GPL-3.0-or-later, and the upstream `COPYING` file is preserved unchanged. See
+[`THIRD_PARTY_NOTICES.md`](../THIRD_PARTY_NOTICES.md) for the boundary between SeeCAD's
+MIT-licensed code and vendored third-party components.
 
 SeeCAD exposes the library to OpenSCAD through `OPENSCADPATH=/opt/libraries`, so generated sources can use paths such as:
 
