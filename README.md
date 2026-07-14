@@ -6,6 +6,12 @@ SeeCAD turns design intent into typed constructive geometry, compiles it in a lo
 
 It is not a text-to-STL endpoint. Semantic design intent remains authoritative and every derived artifact is reproducible.
 
+## The workbench, at a glance
+
+![SeeCAD workbench showing a typed assembly, synchronized 3D inspection, evidence checks, and immutable revision history](docs/images/workbench-overview.jpg)
+
+The checked reference assembly puts the whole reasoning loop on one surface: explicit millimetre dimensions and physical instances on the left, the interactive model and six inspection views in the centre, and confidence-labelled findings plus immutable history on the right. A human can describe one geometric change without giving up the source, artifact, or evidence chain.
+
 ## The core idea
 
 Language models handle OpenSCAD well until the boolean history starts alternating between additions and subtractions. SeeCAD makes the stable workflow structural:
@@ -26,6 +32,26 @@ request such as “move the USB opening 2 mm left” targets a named feature, no
 a growing CSG program.
 
 The complete [NopSCADlib](https://github.com/nophead/NopSCADlib) tree is vendored and pinned, giving agents reusable parts, vitamins, fasteners, utilities, and established modeling vocabulary. Safe typed library calls are supported without allowing arbitrary includes or directives.
+
+### Inspect the assembly as a system
+
+![SeeCAD exploded assembly inspection showing the bridge plate, fasteners, rails, part register, and revision evidence](docs/images/assembly-exploded.jpg)
+
+Exploded inspection keeps the printable body, stock, fasteners, and interfaces legible as separate semantic components. The synchronized views expose the same assembly from six datums while the workbench keeps exact mesh facts distinct from bounded and heuristic review signals.
+
+### Trace the visual result back to source
+
+![SeeCAD with the generated OpenSCAD source open beneath the exploded assembly and evidence panels](docs/images/source-traceability.jpg)
+
+The source drawer connects the rendered result to explicit millimetres, pinned library calls, the positive-volume phase, and the consolidated negative-space pass. Source, mesh, measurements, findings, and revision history remain inspectable together instead of becoming disconnected downloads.
+
+### Review at compact widths
+
+<p align="center">
+  <img src="docs/images/workbench-compact.jpg" alt="Compact SeeCAD inspection workbench with the model, six synchronized views, revision command, and evidence controls" width="520">
+</p>
+
+The central inspection flow remains available on a narrow screen; project details and evidence move into dedicated rails rather than squeezing the model into an unreadable dashboard.
 
 ## What is here
 
