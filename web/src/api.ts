@@ -1,5 +1,6 @@
 import { demoProject, defaultConstraints, DEMO_DESIGN_ID } from "./demo";
 import type {
+  AssemblyComponentSummary,
   ArtifactRef,
   BackendAnalysisResponse,
   BackendComparisonResponse,
@@ -196,6 +197,26 @@ function operationsFromSpec(specValue: unknown): ModelingOperation[] {
   ];
 }
 
+function componentsFromSpec(specValue: unknown): AssemblyComponentSummary[] {
+  const spec = record(specValue);
+  const components = Array.isArray(spec.components) ? spec.components : [];
+  return components.map((value, index) => {
+    const component = record(value);
+    const kind = component.kind;
+    const safeKind: AssemblyComponentSummary["kind"] =
+      kind === "stock" || kind === "connector" || kind === "fastener"
+        ? kind
+        : "part";
+    return {
+      id: text(component.id, `component-${index}`),
+      name: text(component.name, `Component ${index + 1}`),
+      kind: safeKind,
+      quantity: 1,
+      detail: text(component.purpose, "No component purpose recorded"),
+    };
+  });
+}
+
 function constraintsFromSpec(specValue: unknown): ConstraintSet {
   const spec = record(specValue);
   const profile = record(spec.print_profile);
@@ -303,6 +324,7 @@ export function normalizeRevision(
     massG: null,
     printMinutes: null,
     triangles: null,
+    components: componentsFromSpec(payload.spec),
     operations: operationsFromSpec(payload.spec),
     diagnostics: [],
     artifacts,

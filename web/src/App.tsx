@@ -40,6 +40,7 @@ import {
   normalizeAnalysis,
   normalizeRevision,
 } from "./api";
+import { AssemblyPanel } from "./components/AssemblyPanel";
 import { ConstraintsPanel } from "./components/ConstraintsPanel";
 import { DiagnosticsPanel } from "./components/DiagnosticsPanel";
 import { PhaseTimeline } from "./components/PhaseTimeline";
@@ -132,6 +133,7 @@ function LoadingWorkbench() {
 function ShortcutHelp({ onClose }: { onClose: () => void }) {
   const shortcuts = [
     ["1—6", "Select inspection view"],
+    ["E", "Toggle fitted / exploded assembly"],
     ["V", "Run manufacturability analysis"],
     ["C", "Toggle revision overlay"],
     ["`", "Open source and console"],
@@ -191,7 +193,7 @@ function OpenDesignDialog({
     DESIGN_ID_PATTERN.test(currentId) ? currentId : "",
   );
   const [prompt, setPrompt] = useState(
-    "Design a print-ready cable bulkhead bracket with straight driver access to every fastener.",
+    "Design a small bridge plate assembly across two parallel E2020 rails with four accessible M4 clamping stacks.",
   );
   const validId = DESIGN_ID_PATTERN.test(designId);
   return (
@@ -287,7 +289,7 @@ export default function App() {
   const [comparing, setComparing] = useState(false);
   const [baselineId, setBaselineId] = useState("");
   const [revisionPrompt, setRevisionPrompt] = useState(
-    "Lengthen all four driver corridors to keep fasteners reachable after cable routing.",
+    "Increase the bridge plate corner radius to 6 mm without moving the four M4 clearance axes.",
   );
   const [consoleEntries, setConsoleEntries] =
     useState<ConsoleEntry[]>(initialConsole);
@@ -537,7 +539,7 @@ export default function App() {
       );
       setToast({
         tone: "ok",
-        message: "Analysis complete · review the load-path caution",
+        message: "Analysis complete · review the physical-fit boundary",
       });
       if (revision.id !== activeRevision?.id)
         setBaselineId(activeRevision?.id ?? "");
@@ -886,12 +888,12 @@ export default function App() {
       {data.source === "demo" && (
         <div className="demo-notice" role="status">
           <span>
-            <Braces size={12} /> Synthetic demo — not live evidence
+            <Braces size={12} /> Reference assembly — local example
           </span>
           <p>
-            The API did not return design {designId}. Measurements shown here
-            are an illustrative fixture; approval and artifact export are
-            disabled.
+            The workbench is showing the checked SeeCAD library assembly.
+            Approval and artifact export remain disabled until a live revision
+            is opened.
           </p>
           <code>{data.apiMessage}</code>
           <button type="button" onClick={() => setDesignPickerOpen(true)}>
@@ -939,7 +941,7 @@ export default function App() {
                 delta={
                   activeRevision.volumeCm3 === null
                     ? "awaiting analysis"
-                    : "exact mesh volume"
+                    : "exact plate mesh"
                 }
               />
               <Metric
@@ -953,7 +955,7 @@ export default function App() {
                 delta={
                   activeRevision.massG === null
                     ? "not measured"
-                    : "material estimate"
+                    : "PETG estimate"
                 }
               />
               <Metric
@@ -966,7 +968,7 @@ export default function App() {
                 delta={
                   activeRevision.printMinutes === null
                     ? "not estimated"
-                    : `${currentConstraints.layerHeight.toFixed(2)} mm layer`
+                    : `rough · ${currentConstraints.layerHeight.toFixed(2)} mm layer`
                 }
               />
               <Metric
@@ -985,6 +987,7 @@ export default function App() {
               />
             </dl>
           </section>
+          <AssemblyPanel components={activeRevision.components} />
           <ConstraintsPanel
             value={currentConstraints}
             onChange={setConstraints}

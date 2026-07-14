@@ -4,8 +4,16 @@ import {
   Grid,
   OrbitControls,
 } from "@react-three/drei";
-import { Canvas, useLoader, useThree } from "@react-three/fiber";
-import { Box, Crosshair, Maximize2, Rotate3D, ScanLine } from "lucide-react";
+import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
+import {
+  Box,
+  Boxes,
+  Crosshair,
+  Maximize2,
+  MoveUp,
+  Rotate3D,
+  ScanLine,
+} from "lucide-react";
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
@@ -53,128 +61,252 @@ function CameraController({ view }: { view: ViewId }) {
   return null;
 }
 
-function makePlateGeometry(): THREE.ExtrudeGeometry {
+function makeBridgePlateGeometry(): THREE.ExtrudeGeometry {
+  const width = 4;
+  const depth = 3.5;
+  const radius = 0.2;
   const shape = new THREE.Shape();
-  shape.moveTo(-2.2, -1.5);
-  shape.lineTo(2.2, -1.5);
-  shape.lineTo(2.4, -1.3);
-  shape.lineTo(2.4, 1.3);
-  shape.lineTo(2.2, 1.5);
-  shape.lineTo(-2.2, 1.5);
-  shape.lineTo(-2.4, 1.3);
-  shape.lineTo(-2.4, -1.3);
+  shape.moveTo(-width / 2 + radius, -depth / 2);
+  shape.lineTo(width / 2 - radius, -depth / 2);
+  shape.quadraticCurveTo(width / 2, -depth / 2, width / 2, -depth / 2 + radius);
+  shape.lineTo(width / 2, depth / 2 - radius);
+  shape.quadraticCurveTo(width / 2, depth / 2, width / 2 - radius, depth / 2);
+  shape.lineTo(-width / 2 + radius, depth / 2);
+  shape.quadraticCurveTo(-width / 2, depth / 2, -width / 2, depth / 2 - radius);
+  shape.lineTo(-width / 2, -depth / 2 + radius);
+  shape.quadraticCurveTo(
+    -width / 2,
+    -depth / 2,
+    -width / 2 + radius,
+    -depth / 2,
+  );
   shape.closePath();
 
-  const holes: Array<[number, number, number]> = [
-    [0, 0, 0.58],
-    [-1.85, -1.04, 0.13],
-    [1.85, -1.04, 0.13],
-    [-1.85, 1.04, 0.13],
-    [1.85, 1.04, 0.13],
+  const holes: Array<[number, number]> = [
+    [-1.5, -1.25],
+    [1.5, -1.25],
+    [-1.5, 1.25],
+    [1.5, 1.25],
   ];
-  holes.forEach(([x, y, radius]) => {
+  holes.forEach(([x, y]) => {
     const hole = new THREE.Path();
-    hole.absarc(x, y, radius, 0, Math.PI * 2, true);
+    hole.absarc(x, y, 0.11, 0, Math.PI * 2, true);
     shape.holes.push(hole);
   });
   const geometry = new THREE.ExtrudeGeometry(shape, {
-    depth: 0.42,
+    depth: 0.2,
     bevelEnabled: true,
-    bevelSegments: 3,
+    bevelSegments: 2,
     steps: 1,
-    bevelSize: 0.07,
-    bevelThickness: 0.07,
-    curveSegments: 48,
+    bevelSize: 0.025,
+    bevelThickness: 0.025,
+    curveSegments: 32,
   });
   geometry.center();
   return geometry;
 }
 
-function DemoPart({ mode }: { mode: InspectMode }) {
-  const geometry = useMemo(makePlateGeometry, []);
-  const opacity = mode === "xray" ? 0.42 : mode === "negative" ? 0.14 : 1;
+function AnimatedLift({
+  lift,
+  children,
+}: {
+  lift: number;
+  children: React.ReactNode;
+}) {
+  const group = useRef<THREE.Group>(null);
+  useFrame((_, delta) => {
+    if (!group.current) return;
+    group.current.position.y = THREE.MathUtils.damp(
+      group.current.position.y,
+      lift,
+      9,
+      delta,
+    );
+  });
+  return <group ref={group}>{children}</group>;
+}
+
+function ExtrusionRail({ opacity }: { opacity: number }) {
+  const lobePositions: Array<[number, number]> = [
+    [-0.34, -0.34],
+    [-0.34, 0.34],
+    [0.34, -0.34],
+    [0.34, 0.34],
+  ];
+  return (
+    <group>
+      <mesh castShadow receiveShadow>
+        <boxGeometry args={[5, 0.34, 0.34]} />
+        <meshStandardMaterial
+          color="#9ca7a9"
+          metalness={0.82}
+          roughness={0.28}
+          transparent={opacity < 1}
+          opacity={opacity}
+        />
+      </mesh>
+      {lobePositions.map(([y, z]) => (
+        <mesh key={`${y}-${z}`} position={[0, y, z]} castShadow receiveShadow>
+          <boxGeometry args={[5, 0.28, 0.28]} />
+          <meshStandardMaterial
+            color="#c2c9c9"
+            metalness={0.86}
+            roughness={0.24}
+            transparent={opacity < 1}
+            opacity={opacity}
+          />
+        </mesh>
+      ))}
+      <mesh position={[0, 0.505, 0]}>
+        <boxGeometry args={[5.02, 0.018, 0.16]} />
+        <meshBasicMaterial color="#1d2527" transparent opacity={opacity} />
+      </mesh>
+    </group>
+  );
+}
+
+function TNut({ x, z, opacity }: { x: number; z: number; opacity: number }) {
+  return (
+    <group position={[x, 0.43, z]}>
+      <mesh castShadow>
+        <boxGeometry args={[0.48, 0.13, 0.34]} />
+        <meshStandardMaterial
+          color="#727b7d"
+          metalness={0.9}
+          roughness={0.24}
+          transparent={opacity < 1}
+          opacity={opacity}
+        />
+      </mesh>
+      <mesh position={[0, 0.075, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <torusGeometry args={[0.09, 0.018, 8, 24]} />
+        <meshBasicMaterial color="#252c2e" transparent opacity={opacity} />
+      </mesh>
+    </group>
+  );
+}
+
+function CapScrew({
+  x,
+  z,
+  opacity,
+}: {
+  x: number;
+  z: number;
+  opacity: number;
+}) {
+  return (
+    <group position={[x, 0.73, z]}>
+      <mesh position={[0, -0.42, 0]} castShadow>
+        <cylinderGeometry args={[0.095, 0.095, 0.78, 24]} />
+        <meshStandardMaterial
+          color="#8c9698"
+          metalness={0.9}
+          roughness={0.2}
+          transparent={opacity < 1}
+          opacity={opacity}
+        />
+      </mesh>
+      <mesh castShadow>
+        <cylinderGeometry args={[0.205, 0.205, 0.055, 32]} />
+        <meshStandardMaterial
+          color="#d2d6d6"
+          metalness={0.92}
+          roughness={0.18}
+          transparent={opacity < 1}
+          opacity={opacity}
+        />
+      </mesh>
+      <mesh position={[0, 0.15, 0]} castShadow>
+        <cylinderGeometry args={[0.175, 0.175, 0.25, 32]} />
+        <meshStandardMaterial
+          color="#adb5b6"
+          metalness={0.92}
+          roughness={0.2}
+          transparent={opacity < 1}
+          opacity={opacity}
+        />
+      </mesh>
+      <mesh position={[0, 0.281, 0]}>
+        <cylinderGeometry args={[0.07, 0.07, 0.012, 6]} />
+        <meshBasicMaterial color="#30383a" transparent opacity={opacity} />
+      </mesh>
+    </group>
+  );
+}
+
+function DemoAssembly({
+  mode,
+  exploded,
+}: {
+  mode: InspectMode;
+  exploded: boolean;
+}) {
+  const geometry = useMemo(makeBridgePlateGeometry, []);
+  const opacity = mode === "xray" ? 0.42 : mode === "negative" ? 0.12 : 1;
+  const hardwareOpacity = mode === "xray" ? 0.58 : opacity;
   const showNegative = mode !== "solid";
   const holePositions: Array<[number, number]> = [
-    [-1.85, -1.04],
-    [1.85, -1.04],
-    [-1.85, 1.04],
-    [1.85, 1.04],
+    [-1.5, -1.25],
+    [1.5, -1.25],
+    [-1.5, 1.25],
+    [1.5, 1.25],
   ];
 
   return (
-    <group scale={1.18} position={[0, 0.24, 0]}>
-      <mesh
-        geometry={geometry}
-        rotation={[-Math.PI / 2, 0, 0]}
-        castShadow
-        receiveShadow
-      >
-        <meshStandardMaterial
-          color="#afc1c5"
-          metalness={0.44}
-          roughness={0.38}
-          transparent={opacity < 1}
-          opacity={opacity}
-          side={THREE.DoubleSide}
-        />
-      </mesh>
+    <group position={[0, 0.05, 0]}>
+      <group position={[0, 0, -1.25]}>
+        <ExtrusionRail opacity={opacity} />
+      </group>
+      <group position={[0, 0, 1.25]}>
+        <ExtrusionRail opacity={opacity} />
+      </group>
 
-      <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0.44, 0]} castShadow>
-        <torusGeometry args={[0.73, 0.19, 20, 72]} />
-        <meshStandardMaterial
-          color="#9fb2b6"
-          metalness={0.4}
-          roughness={0.36}
-          transparent={opacity < 1}
-          opacity={opacity}
-        />
-      </mesh>
+      {holePositions.map(([x, z]) => (
+        <TNut key={`nut-${x}-${z}`} x={x} z={z} opacity={hardwareOpacity} />
+      ))}
 
-      {[45, 135, 225, 315].map((degrees) => {
-        const angle = THREE.MathUtils.degToRad(degrees);
-        return (
-          <mesh
-            key={degrees}
-            position={[Math.cos(angle) * 1.17, 0.62, Math.sin(angle) * 0.78]}
-            rotation={[0, -angle, -0.12]}
-            castShadow
-          >
-            <boxGeometry args={[1.35, 0.14, 0.35]} />
-            <meshStandardMaterial
-              color="#a7b9bd"
-              metalness={0.42}
-              roughness={0.38}
-              transparent={opacity < 1}
-              opacity={opacity}
-            />
-          </mesh>
-        );
-      })}
-
-      {showNegative && (
-        <group>
-          <mesh position={[0, 0.52, 0]}>
-            <cylinderGeometry args={[0.58, 0.58, 2.1, 48]} />
-            <meshBasicMaterial
-              color="#f2663a"
-              transparent
-              opacity={mode === "negative" ? 0.62 : 0.28}
-              wireframe={mode === "xray"}
-            />
-          </mesh>
-          {holePositions.map(([x, z]) => (
-            <mesh key={`${x}-${z}`} position={[x, 0.46, z]}>
-              <cylinderGeometry args={[0.26, 0.26, 2.4, 24]} />
+      <AnimatedLift lift={exploded ? 0.9 : 0}>
+        <mesh
+          geometry={geometry}
+          rotation={[-Math.PI / 2, 0, 0]}
+          position={[0, 0.61, 0]}
+          castShadow
+          receiveShadow
+        >
+          <meshStandardMaterial
+            color="#2d8fd5"
+            metalness={0.16}
+            roughness={0.48}
+            transparent={opacity < 1}
+            opacity={opacity}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+        {showNegative &&
+          holePositions.map(([x, z]) => (
+            <mesh key={`void-${x}-${z}`} position={[x, 0.61, z]}>
+              <cylinderGeometry args={[0.12, 0.12, 0.7, 24]} />
               <meshBasicMaterial
                 color="#f2663a"
                 transparent
-                opacity={mode === "negative" ? 0.55 : 0.22}
+                opacity={mode === "negative" ? 0.82 : 0.36}
                 wireframe={mode === "xray"}
               />
             </mesh>
           ))}
-        </group>
-      )}
+      </AnimatedLift>
+
+      <AnimatedLift lift={exploded ? 1.8 : 0}>
+        {holePositions.map(([x, z]) => (
+          <CapScrew
+            key={`screw-${x}-${z}`}
+            x={x}
+            z={z}
+            opacity={hardwareOpacity}
+          />
+        ))}
+      </AnimatedLift>
     </group>
   );
 }
@@ -269,7 +401,7 @@ function DemoGhost({
   baseline: Revision;
   revision: Revision;
 }) {
-  const geometry = useMemo(makePlateGeometry, []);
+  const geometry = useMemo(makeBridgePlateGeometry, []);
   const current = revision.dimensions;
   const prior = baseline.dimensions;
   const ratio: [number, number, number] =
@@ -278,8 +410,8 @@ function DemoGhost({
       : [0.985, 0.96, 0.985];
   return (
     <group
-      scale={[1.18 * ratio[0], 1.18 * ratio[1], 1.18 * ratio[2]]}
-      position={[0.07, 0.21, -0.07]}
+      scale={[ratio[0], ratio[1], ratio[2]]}
+      position={[0.07, 0.61, -0.07]}
     >
       <mesh geometry={geometry} rotation={[-Math.PI / 2, 0, 0]}>
         <meshBasicMaterial
@@ -316,6 +448,7 @@ function ModelScene({
   comparing,
   baseline,
   demoFallback,
+  exploded,
 }: {
   revision: Revision;
   view: ViewId;
@@ -323,6 +456,7 @@ function ModelScene({
   comparing: boolean;
   baseline?: Revision;
   demoFallback: boolean;
+  exploded: boolean;
 }) {
   return (
     <>
@@ -361,7 +495,7 @@ function ModelScene({
             mode={mode}
           />
         ) : demoFallback ? (
-          <DemoPart mode={mode} />
+          <DemoAssembly mode={mode} exploded={exploded} />
         ) : (
           <SpecProxy />
         )}
@@ -431,44 +565,58 @@ function PartSchematic({
       </defs>
       <g className="schematic-grid">
         <path d="M10 47H170M90 6V88" />
-        <circle cx="90" cy="47" r="32" />
+        <path d="M26 17H154V77H26Z" />
       </g>
       {isSide ? (
-        <g className="schematic-part">
-          <path d="M25 63H155V72H25Z" />
-          <path d="M73 63V39Q73 31 81 31H99Q107 31 107 39V63" />
-          <path className="schematic-hole" d="M82 63V39H98V63" />
-        </g>
-      ) : (
-        <g className="schematic-part">
-          <path
-            d="M34 22H146L154 30V64L146 72H34L26 64V30Z"
-            fill={isSection ? `url(#hatch-${view})` : undefined}
-          />
-          <circle className="schematic-hole" cx="90" cy="47" r="16" />
-          {[
-            [-1, -1],
-            [1, -1],
-            [-1, 1],
-            [1, 1],
-          ].map(([x, y], i) => (
-            <circle
-              key={i}
-              className="schematic-hole"
-              cx={90 + x * 47}
-              cy={47 + y * 16}
-              r="4.5"
+        <>
+          <g className="schematic-stock">
+            <path d="M39 49H67V70H39Z" />
+            <path d="M113 49H141V70H113Z" />
+            <path d="M47 49V70M59 49V70M121 49V70M133 49V70" />
+          </g>
+          <g className="schematic-part">
+            <path
+              d="M27 41H153V49H27Z"
+              fill={isSection ? `url(#hatch-${view})` : undefined}
             />
-          ))}
-        </g>
+            <path className="schematic-hole" d="M50 41V49M130 41V49" />
+          </g>
+        </>
+      ) : (
+        <>
+          <g className="schematic-stock">
+            <path d="M18 25H162V36H18ZM18 58H162V69H18Z" />
+            <path d="M18 30H162M18 63H162" />
+          </g>
+          <g className="schematic-part">
+            <path
+              d="M39 18H141L147 24V70L141 76H39L33 70V24Z"
+              fill={isSection ? `url(#hatch-${view})` : undefined}
+            />
+            {[
+              [-1, -1],
+              [1, -1],
+              [-1, 1],
+              [1, 1],
+            ].map(([x, y], i) => (
+              <circle
+                key={i}
+                className="schematic-hole"
+                cx={90 + x * 42}
+                cy={47 + y * 17}
+                r="4"
+              />
+            ))}
+          </g>
+        </>
       )}
       {(negative || isAccess) && (
         <g className="schematic-negative">
-          <path d="M90 4V90" />
+          <path d="M48 10V84M132 10V84" />
           {isAccess && (
             <>
-              <path d="M43 8V86M137 8V86" />
-              <path d="M36 14L43 6L50 14M130 14L137 6L144 14" />
+              <path d="M42 15L48 8L54 15M126 15L132 8L138 15" />
+              <path d="M42 79L48 86L54 79M126 79L132 86L138 79" />
             </>
           )}
         </g>
@@ -511,6 +659,7 @@ export function VisionRig({
 }: VisionRigProps) {
   const [view, setView] = useState<ViewId>("iso");
   const [mode, setMode] = useState<InspectMode>("solid");
+  const [exploded, setExploded] = useState(false);
   const viewportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -522,10 +671,12 @@ export function VisionRig({
         return;
       const index = Number(event.key) - 1;
       if (index >= 0 && index < views.length) setView(views[index].id);
+      if (event.key.toLowerCase() === "e" && demoFallback)
+        setExploded((value) => !value);
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [demoFallback]);
 
   return (
     <section className="vision-rig" aria-labelledby="rig-title">
@@ -541,29 +692,52 @@ export function VisionRig({
             )}
           </div>
         </div>
-        <div className="rig-mode-group" aria-label="Model display mode">
-          <ModeButton
-            active={mode === "solid"}
-            label="Solid"
-            onClick={() => setMode("solid")}
-          />
-          <ModeButton
-            active={mode === "xray"}
-            label="X-ray"
-            onClick={() => setMode("xray")}
-          />
-          <ModeButton
-            active={mode === "negative"}
-            label="Negative"
-            onClick={() => setMode("negative")}
-          />
+        <div className="rig-controls">
+          {demoFallback && (
+            <div className="assembly-mode-group" aria-label="Assembly state">
+              <button
+                className={!exploded ? "is-active" : ""}
+                type="button"
+                aria-pressed={!exploded}
+                onClick={() => setExploded(false)}
+              >
+                <Boxes size={12} /> Fitted
+              </button>
+              <button
+                className={exploded ? "is-active" : ""}
+                type="button"
+                aria-pressed={exploded}
+                onClick={() => setExploded(true)}
+              >
+                <MoveUp size={12} /> Exploded
+              </button>
+            </div>
+          )}
+          <div className="rig-mode-group" aria-label="Model display mode">
+            <ModeButton
+              active={mode === "solid"}
+              label="Solid"
+              onClick={() => setMode("solid")}
+            />
+            <ModeButton
+              active={mode === "xray"}
+              label="X-ray"
+              onClick={() => setMode("xray")}
+            />
+            <ModeButton
+              active={mode === "negative"}
+              label="Negative"
+              onClick={() => setMode("negative")}
+            />
+          </div>
         </div>
       </header>
 
       <div className="viewport-shell" ref={viewportRef}>
         <div className="viewport-readout viewport-readout-left">
           <span>
-            CAM {views.find((candidate) => candidate.id === view)?.index}
+            CAM {views.find((candidate) => candidate.id === view)?.index} ·{" "}
+            {exploded && demoFallback ? "EXPLODED" : "FITTED"}
           </span>
           <strong>
             {views
@@ -612,6 +786,7 @@ export function VisionRig({
             comparing={comparing}
             baseline={baseline}
             demoFallback={demoFallback}
+            exploded={exploded}
           />
         </Canvas>
         <div className="viewport-hint">

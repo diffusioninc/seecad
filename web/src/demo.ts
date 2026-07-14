@@ -1,4 +1,5 @@
 import type {
+  AssemblyComponentSummary,
   ConstraintSet,
   Diagnostic,
   ModelingOperation,
@@ -6,7 +7,7 @@ import type {
   Revision,
 } from "./types";
 
-export const DEMO_DESIGN_ID = "SC-042";
+export const DEMO_DESIGN_ID = "SC-A01";
 
 export const defaultConstraints: ConstraintSet = {
   material: "PETG · Prusament",
@@ -19,56 +20,58 @@ export const defaultConstraints: ConstraintSet = {
   buildVolume: { x: 220, y: 220, z: 250 },
   tolerance: 0.2,
   infill: 35,
-  loadCase: "18 kg static, vertical",
+  loadCase: "Demonstration only · no rated load",
 };
+
+const components: AssemblyComponentSummary[] = [
+  {
+    id: "bridge-plate",
+    name: "Bridge plate",
+    kind: "part",
+    quantity: 1,
+    detail: "PETG · 80 × 70 × 4 mm",
+  },
+  {
+    id: "e2020-rails",
+    name: "E2020 extrusion",
+    kind: "stock",
+    quantity: 2,
+    detail: "20 × 20 profile · 100 mm",
+    libraryRef: "NopSCADlib E2020",
+  },
+  {
+    id: "m4-cap-screws",
+    name: "M4 cap screw + washer",
+    kind: "fastener",
+    quantity: 4,
+    detail: "12 mm nominal length",
+    libraryRef: "NopSCADlib M4_cap_screw",
+  },
+  {
+    id: "m4-t-nuts",
+    name: "M4 sliding T-nut",
+    kind: "fastener",
+    quantity: 4,
+    detail: "Upper rail slot placement",
+    libraryRef: "NopSCADlib M4_sliding_t_nut",
+  },
+];
 
 const operations: ModelingOperation[] = [
   {
     id: "op-01",
     phase: "positive",
-    label: "Mounting envelope",
-    primitive: "rounded_cuboid",
-    detail: "84 × 56 × 8 mm datum body",
+    label: "Bridge plate material",
+    primitive: "rounded_rectangle",
+    detail: "80 × 70 × 4 mm · R4 corners",
     status: "complete",
   },
   {
     id: "op-02",
-    phase: "positive",
-    label: "Cable boss",
-    primitive: "rounded_cylinder",
-    detail: "Ø28 × 14 mm, concentric to X/Y",
-    status: "complete",
-  },
-  {
-    id: "op-03",
-    phase: "positive",
-    label: "Load ribs",
-    primitive: "hull × 4",
-    detail: "2.8 mm radial gussets",
-    status: "complete",
-  },
-  {
-    id: "op-04",
     phase: "negative",
-    label: "Cable passage",
-    primitive: "teardrop_bore",
-    detail: "Ø16.4 mm through, print-safe crown",
-    status: "complete",
-  },
-  {
-    id: "op-05",
-    phase: "negative",
-    label: "Fastener pattern",
-    primitive: "polyhole × 4",
-    detail: "M4 clearance, 68 × 40 mm pitch",
-    status: "complete",
-  },
-  {
-    id: "op-06",
-    phase: "negative",
-    label: "Driver corridors",
-    primitive: "tool_access × 4",
-    detail: "Ø11 × 32 mm approach cylinders",
+    label: "M4 clearance pattern",
+    primitive: "poly_cylinder × 4",
+    detail: "60 × 50 mm pitch · plate target only",
     status: "complete",
   },
 ];
@@ -78,11 +81,65 @@ const diagnostics: Diagnostic[] = [
     id: "dx-watertight",
     evidence: "exact",
     severity: "pass",
-    label: "Closed mesh",
-    value: "2-manifold",
-    detail: "Every edge is shared by exactly two faces.",
-    source: "CGAL mesh topology",
-    location: "whole body",
+    label: "Plate topology",
+    value: "Watertight",
+    detail: "The compiled plate mesh is watertight with consistent winding.",
+    source: "OpenSCAD CGAL + Trimesh readback",
+    location: "bridge plate mesh",
+  },
+  {
+    id: "dx-envelope",
+    evidence: "exact",
+    severity: "pass",
+    label: "Plate envelope",
+    value: "80 × 70 × 4 mm",
+    detail: "Exact bounds read from the compiled STL derivative.",
+    source: "triangle bounds",
+    location: "bridge plate mesh",
+  },
+  {
+    id: "dx-scope",
+    evidence: "exact",
+    severity: "pass",
+    label: "Negative ownership",
+    value: "Plate only",
+    detail:
+      "All four clearance holes are collected in one named subtraction and do not cut the library hardware or rails.",
+    source: "semantic source contract",
+    location: "four M4 clearances",
+  },
+  {
+    id: "dx-contact",
+    evidence: "bounded",
+    severity: "pass",
+    label: "Rail bearing faces",
+    value: "2 aligned",
+    detail:
+      "The nominal plate underside is coincident with both extrusion top faces.",
+    source: "declared component transforms",
+    location: "plate / rail interfaces",
+  },
+  {
+    id: "dx-clearance",
+    evidence: "bounded",
+    severity: "pass",
+    label: "Fastener alignment",
+    value: "4 / 4 axes",
+    detail:
+      "The four clearance axes share the two upper extrusion-slot centrelines at Y ±25 mm.",
+    source: "nominal feature coordinates",
+    location: "clamping pattern",
+  },
+  {
+    id: "dx-overhang",
+    evidence: "heuristic",
+    severity: "pass",
+    label: "Plate orientation",
+    value: "Broad face down",
+    detail:
+      "The print-layout selector places the bridge plate on its broad face; slicer review is still required.",
+    source: "reference print-layout orientation",
+    location: "bridge plate",
   },
   {
     id: "dx-wall",
@@ -90,103 +147,74 @@ const diagnostics: Diagnostic[] = [
     severity: "caution",
     label: "Minimum wall",
     value: "Not measured",
-    detail: "The demo does not include a volumetric wall-thickness solve.",
-    source: "synthetic demo · measurement unavailable",
-    location: "whole body",
+    detail: "No volumetric minimum-wall solve was run for this fixture.",
+    source: "measurement unavailable",
+    location: "bridge plate",
   },
   {
-    id: "dx-clearance",
-    evidence: "exact",
-    severity: "pass",
-    label: "Hole allowance",
-    value: "+0.40 mm",
-    detail: "M4 polyholes include calibrated FDM allowance.",
-    source: "nominal geometry",
-    location: "4 mounting holes",
-  },
-  {
-    id: "dx-overhang",
-    evidence: "heuristic",
-    severity: "pass",
-    label: "Unsupported angle",
-    value: "38.2°",
-    detail: "Below the configured 45° support threshold.",
-    source: "synthetic demo · face-normal heuristic",
-    location: "boss underside",
-  },
-  {
-    id: "dx-tool",
-    evidence: "heuristic",
-    severity: "pass",
-    label: "Driver access",
-    value: "4 / 4 clear",
-    detail:
-      "A 10 mm driver envelope reaches each fastener without intersecting the part.",
-    source: "tool corridor simulation",
-    location: "mounting pattern",
-  },
-  {
-    id: "dx-load",
-    evidence: "heuristic",
+    id: "dx-fit",
+    evidence: "unavailable",
     severity: "caution",
-    label: "Load path",
-    value: "Review advised",
+    label: "Physical engagement",
+    value: "Bench test required",
     detail:
-      "Ribs appear continuous to the bolt pattern; deformation was not solved by FEA.",
-    source: "geometry reasoning",
-    location: "upper rib pair",
-  },
-  {
-    id: "dx-assembly",
-    evidence: "heuristic",
-    severity: "pass",
-    label: "Assembly order",
-    value: "Unblocked",
-    detail:
-      "Cable can be routed before the four mounting fasteners are torqued.",
-    source: "assembly sequence model",
-    location: "cable passage",
+      "T-nut fit, thread engagement, preload, load transfer, and structural integrity are not established.",
+    source: "solver boundary",
+    location: "four clamping stacks",
   },
 ];
 
-export const demoSource = `// SeeCAD generated · SC-042 / r07
-// Strategy: establish all positive volume, then subtract all negative space.
+export const demoSource = `// SeeCAD reference fixture · SC-A01 / r03
+// Units: millimetres. Semantic authority: intent.json.
 include <NopSCADlib/core.scad>
-include <NopSCADlib/utils/rounded_cylinder.scad>
-include <NopSCADlib/utils/horiholes.scad>
+include <NopSCADlib/vitamins/extrusions.scad>
+include <NopSCADlib/vitamins/screws.scad>
 
-$fn = 72;
+unit_system = "millimetres";
+rail_type = E2020;
+rail_length = 100;
+rail_spacing = 50;
+plate_size = [80, 70, 4];
+fastener_type = M4_cap_screw;
+rail_nut_type = M4_sliding_t_nut;
+
+module at_fastener_positions() {
+  for (x = [-30, 30], y = [-25, 25])
+    translate([x, y, 0]) children();
+}
 
 module positive_volume() {
-  union() {
-    rounded_rectangle([84, 56, 8], 4, center = true);
-    translate([0, 0, 8]) rounded_cylinder(r = 14, h = 14, r2 = 2);
-
-    // Radial load ribs stay in the positive pass.
-    for (a = [45, 135, 225, 315])
-      rotate([0, 0, a])
-        hull() {
-          translate([12, 0, 5]) cube([18, 2.8, 10], center = true);
-          translate([25, 0, 2]) cube([2, 2.8, 4], center = true);
-        }
-  }
+  rounded_rectangle(plate_size, 4, center = false, xy_center = true);
 }
 
 module negative_space() {
-  // Functional bore: teardrop crown avoids trapped support.
-  translate([0, 0, -5]) teardrop_plus(r = 8.2, h = 28, center = false);
+  at_fastener_positions()
+    translate([0, 0, -2])
+      poly_cylinder(r = screw_clearance_radius(fastener_type), h = 8);
+}
 
-  // Fastener holes and deliberately long tool corridors.
-  for (x = [-34, 34], y = [-20, 20]) {
-    translate([x, y, -10]) poly_cylinder(r = 2.2, h = 30, center = false);
-    translate([x, y, 4]) cylinder(d = 11, h = 32, center = false);
+module bridge_plate() {
+  difference() {
+    positive_volume();
+    negative_space();
   }
 }
 
-difference() {
-  positive_volume();
-  negative_space();
-}`;
+module assembly() {
+  for (y = [-25, 25])
+    translate([0, y, 10]) rotate([0, 90, 0])
+      extrusion(rail_type, rail_length, center = true);
+
+  at_fastener_positions() translate([0, 0, 20])
+    sliding_t_nut(rail_nut_type);
+
+  color("DodgerBlue") translate([0, 0, 20]) bridge_plate();
+
+  at_fastener_positions() translate([0, 0, 24])
+    screw_and_washer(fastener_type, 12);
+}
+
+assembly();`;
 
 function makeRevision(
   id: string,
@@ -198,17 +226,19 @@ function makeRevision(
     id,
     parentId,
     createdAt:
-      id === "r07" ? "2026-07-13T16:22:00-07:00" : "2026-07-13T15:40:00-07:00",
-    author: id === "r07" ? "SeeCAD + human" : "SeeCAD",
+      id === "r03" ? "2026-07-13T22:32:00-07:00" : "2026-07-13T22:18:00-07:00",
+    author: id === "r03" ? "SeeCAD + human" : "SeeCAD",
     message,
-    state: id === "r07" ? "analyzed" : "compiled",
-    checksum: id === "r07" ? "7f29a6c" : id === "r06" ? "0b7d192" : "9ce340b",
+    state: id === "r03" ? "analyzed" : "compiled",
+    checksum:
+      id === "r03" ? "22a1f0b8" : id === "r02" ? "183cbad4" : "a2190d31",
     source: demoSource,
-    dimensions: { x: 84, y: 56, z: id === "r05" ? 21 : 22, unit: "mm" },
-    volumeCm3: id === "r07" ? 31.82 : id === "r06" ? 30.94 : 29.88,
-    massG: id === "r07" ? 40.6 : id === "r06" ? 39.4 : 38.1,
-    printMinutes: id === "r07" ? 104 : 99,
-    triangles: 18432,
+    dimensions: { x: 100, y: 70, z: id === "r01" ? 20 : 24, unit: "mm" },
+    volumeCm3: id === "r03" ? 22.091 : id === "r02" ? 22.091 : 0,
+    massG: id === "r03" ? 28.1 : id === "r02" ? 28.1 : 0,
+    printMinutes: id === "r03" ? 74 : id === "r02" ? 74 : 0,
+    triangles: id === "r01" ? null : 412,
+    components,
     operations,
     diagnostics,
     artifacts: {},
@@ -218,14 +248,18 @@ function makeRevision(
 
 export const demoProject: Project = {
   id: DEMO_DESIGN_ID,
-  name: "Cable bulkhead bracket",
+  name: "Two-rail bridge assembly",
   brief:
-    "Wall-mounted cable pass-through. Carry 18 kg static load, accept M4 hardware, and preserve straight driver access after the cable is routed.",
-  activeRevisionId: "r07",
+    "Fasten one printable bridge plate across two parallel E2020 rails with four M4 screw, washer, and sliding T-nut stacks.",
+  activeRevisionId: "r03",
   constraints: defaultConstraints,
   revisions: [
-    makeRevision("r07", "r06", "Lengthen driver corridors; lock positive body"),
-    makeRevision("r06", "r05", "Add teardrop crown and calibrated polyholes"),
-    makeRevision("r05", null, "Initial constrained volume"),
+    makeRevision("r03", "r02", "Verify plate mesh and label solver boundaries"),
+    makeRevision(
+      "r02",
+      "r01",
+      "Add bridge plate and scoped M4 clearance pattern",
+    ),
+    makeRevision("r01", null, "Place two 100 mm E2020 datum rails"),
   ],
 };

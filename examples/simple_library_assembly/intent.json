@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "design_id": "seecad.example.simple-library-assembly.v1",
+  "title": "Two-rail bridge plate assembly",
+  "semantic_authority": "intent.json",
+  "reference_realisation": "simple_library_assembly.scad",
+  "units": "millimetres",
+  "purpose": "A minimal demonstrator that fastens one printable bridge plate across two parallel T-slot extrusion rails using standard library hardware.",
+  "boolean_strategy": {
+    "sequence": [
+      "positive_volume",
+      "single_consolidated_negative_space"
+    ],
+    "alternating_boolean_history_allowed": false
+  },
+  "components": [
+    {
+      "id": "left_rail",
+      "kind": "stock",
+      "quantity": 1,
+      "library_part": "NopSCADlib E2020 extrusion",
+      "length_mm": 100
+    },
+    {
+      "id": "right_rail",
+      "kind": "stock",
+      "quantity": 1,
+      "library_part": "NopSCADlib E2020 extrusion",
+      "length_mm": 100
+    },
+    {
+      "id": "bridge_plate",
+      "kind": "printed_part",
+      "quantity": 1,
+      "size_mm": [80, 70, 4],
+      "library_geometry": [
+        "NopSCADlib rounded_rectangle",
+        "NopSCADlib poly_cylinder"
+      ]
+    },
+    {
+      "id": "plate_fastener",
+      "kind": "fastener",
+      "quantity": 4,
+      "library_part": "NopSCADlib M4_cap_screw with M4_washer",
+      "nominal_length_mm": 12
+    },
+    {
+      "id": "rail_t_nut",
+      "kind": "fastener",
+      "quantity": 4,
+      "library_part": "NopSCADlib M4_sliding_t_nut"
+    }
+  ],
+  "interfaces": [
+    {
+      "id": "left_rail_plate_bearing_face",
+      "kind": "bounded_face_contact",
+      "participants": ["left_rail", "bridge_plate"]
+    },
+    {
+      "id": "right_rail_plate_bearing_face",
+      "kind": "bounded_face_contact",
+      "participants": ["right_rail", "bridge_plate"]
+    },
+    {
+      "id": "four_m4_clamping_stacks",
+      "kind": "nominal_fastener_interface",
+      "participants": ["bridge_plate", "plate_fastener", "rail_t_nut"]
+    }
+  ],
+  "positive_features": [
+    "rounded_bridge_plate_material"
+  ],
+  "negative_features": [
+    "four_m4_plate_clearance_holes"
+  ],
+  "checks": [
+    {
+      "classification": "exact",
+      "claim": "The source declares millimetres, validates its selectors, and uses one plate-level difference of positive_volume minus negative_space."
+    },
+    {
+      "classification": "exact",
+      "claim": "The reference realisation calls the pinned NopSCADlib E2020, M4 cap-screw, washer, sliding-T-nut, rounded-rectangle, and poly-cylinder definitions."
+    },
+    {
+      "classification": "bounded",
+      "claim": "The nominal plate underside is coincident with the two extrusion top faces, and each clearance-hole axis is aligned with an upper extrusion slot centreline."
+    },
+    {
+      "classification": "heuristic",
+      "claim": "The 4 mm plate and four M4 clamping locations are intended only as an easy-to-inspect demonstration arrangement."
+    },
+    {
+      "classification": "unavailable",
+      "claim": "Physical fit, slot engagement, screw thread engagement, preload, load transfer, manufacturability, and structural integrity are not established."
+    }
+  ],
+  "artifact_policy": {
+    "generated_scad_meshes_renders_and_reports_are_derivatives": true,
+    "generated_artifacts_must_be_content_addressed_by_the_engine": true,
+    "generated_artifacts_belong_outside_source_control": true
+  }
+}

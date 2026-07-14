@@ -51,6 +51,15 @@ export interface Diagnostic {
   location?: string;
 }
 
+export interface AssemblyComponentSummary {
+  id: string;
+  name: string;
+  kind: "part" | "stock" | "connector" | "fastener";
+  quantity: number;
+  detail: string;
+  libraryRef?: string;
+}
+
 export interface ArtifactRef {
   sha256: string;
   media_type?: string;
@@ -76,6 +85,7 @@ export interface Revision {
   massG: number | null;
   printMinutes: number | null;
   triangles: number | null;
+  components: AssemblyComponentSummary[];
   operations: ModelingOperation[];
   diagnostics: Diagnostic[];
   artifacts: Record<string, ArtifactRef>;

@@ -276,4 +276,25 @@ describe("workbench evidence contracts", () => {
     expect(wall?.value).toBe("Not measured");
     expect(overhang?.evidence).toBe("heuristic");
   });
+
+  it("loads the reference assembly with its physical library register", () => {
+    const active = demoProject.revisions.find(
+      (revision) => revision.id === demoProject.activeRevisionId,
+    );
+    const quantity = active?.components.reduce(
+      (total, component) => total + component.quantity,
+      0,
+    );
+    const libraryQuantity = active?.components.reduce(
+      (total, component) =>
+        total + (component.libraryRef ? component.quantity : 0),
+      0,
+    );
+
+    expect(demoProject.name).toBe("Two-rail bridge assembly");
+    expect(quantity).toBe(11);
+    expect(libraryQuantity).toBe(10);
+    expect(active?.source.match(/difference\(\)/g)).toHaveLength(1);
+    expect(active?.source).toContain('unit_system = "millimetres"');
+  });
 });
