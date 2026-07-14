@@ -12,6 +12,7 @@ from typing import Any
 
 from seecad.errors import InvalidDesignError
 from seecad.models import (
+    ASSEMBLY_ENVELOPE_TOLERANCE_MM,
     BooleanArgument,
     Box,
     Cone,
@@ -291,6 +292,11 @@ class ScadGenerator:
         return self._provenance
 
     def generate(self, spec: DesignSpec) -> GeneratedScad:
+        if spec.schema_version != "1.1":
+            raise InvalidDesignError(
+                "legacy schema 1.0 designs are read-only; revise the design to component-scoped "
+                "schema 1.1 before generating or compiling new artifacts"
+            )
         library_calls: list[LibraryCall] = []
         library_calls.extend(
             solid.shape for solid in spec.positive_solids if isinstance(solid.shape, LibraryCall)
@@ -324,9 +330,17 @@ class ScadGenerator:
         lines.append("")
 
         positive_modules: list[str] = []
+        positive_modules_by_component: dict[str, list[str]] = {
+            component.id: [] for component in spec.components
+        }
         for solid in spec.positive_solids:
             module = f"positive_{_module_id(solid.id)}"
             positive_modules.append(module)
+            if solid.component_id is None:  # guarded by DesignSpec 1.1 validation
+                raise InvalidDesignError(
+                    "positive solid has no assembly component", details={"solid_id": solid.id}
+                )
+            positive_modules_by_component[solid.component_id].append(module)
             lines.extend(
                 [
                     f"module {module}() {{",
@@ -355,10 +369,51 @@ class ScadGenerator:
             channel_modules.append(module)
             lines.extend([f"module {module}() {{", *_indent(_channel_lines(channel)), "}", ""])
 
+        component_modules: dict[str, str] = {}
+        for component in spec.components:
+            module = f"component_positive_{_module_id(component.id)}"
+            component_modules[component.id] = module
+            lines.extend([f"module {module}() {{", "  union() {"])
+            lines.extend(
+                f"    {positive_module}();"
+                for positive_module in positive_modules_by_component[component.id]
+            )
+            lines.extend(["  }", "}", ""])
+
+        scoped_negative_modules: list[str] = []
+        negative_scopes: dict[str, list[str]] = {}
+        for feature, raw_module in zip(spec.negative_features, negative_modules, strict=True):
+            scoped_module = f"scoped_negative_{_module_id(feature.id)}"
+            scoped_negative_modules.append(scoped_module)
+            negative_scopes[feature.id] = list(feature.target_component_ids)
+            lines.extend([f"module {scoped_module}() {{", "  intersection() {"])
+            lines.extend([f"    {raw_module}();", "    union() {"])
+            lines.extend(
+                f"      {component_modules[component_id]}();"
+                for component_id in feature.target_component_ids
+            )
+            lines.extend(["    }", "  }", "}", ""])
+
+        scoped_channel_modules: list[str] = []
+        channel_scopes: dict[str, list[str]] = {}
+        for channel, raw_module in zip(spec.tool_access_channels, channel_modules, strict=True):
+            scoped_module = f"scoped_tool_access_{_module_id(channel.id)}"
+            scoped_channel_modules.append(scoped_module)
+            channel_scopes[channel.id] = list(channel.target_component_ids)
+            lines.extend([f"module {scoped_module}() {{", "  intersection() {"])
+            lines.extend([f"    {raw_module}();", "    union() {"])
+            lines.extend(
+                f"      {component_modules[component_id]}();"
+                for component_id in channel.target_component_ids
+            )
+            lines.extend(["    }", "  }", "}", ""])
+
         lines.extend(["module positive_volume() {", "  union() {"])
-        lines.extend(f"    {module}();" for module in positive_modules)
+        lines.extend(f"    {module}();" for module in component_modules.values())
         lines.extend(["  }", "}", "", "module negative_volume() {", "  union() {"])
-        lines.extend(f"    {module}();" for module in [*negative_modules, *channel_modules])
+        lines.extend(
+            f"    {module}();" for module in [*scoped_negative_modules, *scoped_channel_modules]
+        )
         lines.extend(
             [
                 "  }",
@@ -379,20 +434,33 @@ class ScadGenerator:
         spec_bytes = canonical_spec_bytes(spec)
         provenance = self._verified_provenance() if library_calls else {}
         manifest: dict[str, Any] = {
-            "schema_version": "1.0",
-            "generator": "seecad.scad/1",
+            "schema_version": "1.1",
+            "generator": "seecad.scad/2",
             "units": spec.units,
             "spec_sha256": _sha256(spec_bytes),
             "scad_sha256": _sha256(source.encode("utf-8")),
-            "boolean_strategy": "single_negative_difference_pass",
+            "boolean_strategy": "single_component_scoped_negative_difference_pass",
             "boolean_scope": (
-                "design_level_csg; audited library primitives may contain internal CSG"
+                "design_level_csg_with_component_intersection_masks; audited library "
+                "primitives may contain internal CSG"
             ),
+            "assembly_validation": {
+                "status": "passed",
+                "component_non_interference": "bounded_transformed_aabb",
+                "required_contacts": "bounded_transformed_aabb_face_contact",
+                "negative_scope_ownership": "exact_by_construction",
+                "tolerance_mm": ASSEMBLY_ENVELOPE_TOLERANCE_MM,
+            },
             "modules": {
                 "positive": positive_modules,
+                "components": component_modules,
                 "negative": negative_modules,
                 "tool_access": channel_modules,
+                "scoped_negative": scoped_negative_modules,
+                "scoped_tool_access": scoped_channel_modules,
             },
+            "negative_targets": negative_scopes,
+            "tool_access_targets": channel_scopes,
             "libraries": [
                 {
                     "library": call.library,

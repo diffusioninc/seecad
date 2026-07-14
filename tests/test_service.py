@@ -113,6 +113,15 @@ def test_explicit_spec_create_compile_analyze_vertical_slice(
     assert measurements["degenerate_triangle_count"].value == 0
     assert measurements["degenerate_triangle_count"].confidence == "bounded"
     assert "tolerance" in measurements["degenerate_triangle_count"].basis
+    assert measurements["component_negative_scope_validated"].value is True
+    assert measurements["component_negative_scope_validated"].confidence == "exact"
+    assert measurements["component_envelope_non_interference"].confidence == "bounded"
+    assert measurements["required_component_face_contacts"].confidence == "bounded"
+    assert any(
+        finding.code == "physical_assembly_fit_unverified" and finding.confidence == "unavailable"
+        for finding in analyzed.analysis.findings
+    )
+    assert "Physical assembly fit and support remain unverified." in analyzed.analysis.summary
 
 
 def test_evidence_bundle_is_bound_to_the_final_analyzed_revision(
@@ -218,7 +227,7 @@ def test_manifest_contains_nop_provenance_boundary(tmp_path: Path, simple_spec: 
     service, _engine = make_service(tmp_path)
     revision = service.create_design(CreateDesignRequest(spec=simple_spec))
     manifest = service.artifacts.get(revision.artifacts["manifest"].sha256)
-    assert b'"boolean_strategy":"single_negative_difference_pass"' in manifest
+    assert b'"boolean_strategy":"single_component_scoped_negative_difference_pass"' in manifest
 
 
 def test_remote_compile_report_persists_verified_worker_provenance(

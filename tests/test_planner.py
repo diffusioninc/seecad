@@ -80,14 +80,24 @@ def _shape(kind: str, **parameters: object) -> dict[str, object]:
 def _planner_payload(*, shape: dict[str, object] | None = None) -> dict[str, object]:
     return {
         "spec": {
-            "schema_version": "1.0",
+            "schema_version": "1.1",
             "name": "Fixture bracket",
             "intent": "A conservative mounting fixture.",
             "units": "mm",
+            "components": [
+                {
+                    "id": "fixture",
+                    "name": "Fixture",
+                    "kind": "part",
+                    "purpose": "Single fabricated fixture component.",
+                    "must_contact": [],
+                }
+            ],
             "positive_solids": [
                 {
                     "id": "main-body",
                     "name": "Main body",
+                    "component_id": "fixture",
                     "shape": shape
                     or _shape(
                         "box",
@@ -114,6 +124,7 @@ def _planner_payload(*, shape: dict[str, object] | None = None) -> dict[str, obj
                     },
                     "intent": "through_hole",
                     "rationale": "Printer-compensated fastener clearance.",
+                    "target_component_ids": ["fixture"],
                 }
             ],
             "tool_access_channels": [
@@ -127,6 +138,7 @@ def _planner_payload(*, shape: dict[str, object] | None = None) -> dict[str, obj
                     "endpoint_overtravel": 2.0,
                     "tool": "3 mm driver",
                     "rationale": "Preserve reach through future wall edits.",
+                    "target_component_ids": ["fixture"],
                     "facets": 64,
                 }
             ],

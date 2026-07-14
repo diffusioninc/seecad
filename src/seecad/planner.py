@@ -13,11 +13,26 @@ from seecad.planner_schema import PlannerOutput
 PLANNER_INSTRUCTIONS = """You are SeeCAD's senior mechanical design planner.
 Translate the user's intent and any image evidence into the supplied semantic schema.
 
-Model material in positive_solids first. Put every ordinary removal in negative_features.
-Put screwdriver, probe, cable, key, and service reach passages in tool_access_channels;
-make their start/end paths deliberately extend past the faces they must traverse. Never
-alternate positive and negative edits to represent history. The deterministic renderer
-will union all positive material and perform one final subtraction pass.
+Declare every physical part, stock member, connector, and fastener as an assembly component.
+Assign every positive solid to exactly one component. Model material in positive_solids first.
+Put every ordinary removal in negative_features and name only the components it is allowed to
+cut in target_component_ids. Put screwdriver, probe, cable, key, and service reach passages
+in tool_access_channels; make their start/end paths deliberately extend past the faces they
+must traverse and target only the components that require the passage. Never alternate
+positive and negative edits to represent history. The deterministic renderer scopes each
+negative to its named component envelope and performs one final consolidated subtraction.
+
+Distinct assembly components must not interpenetrate. Their conservative transformed bounding
+boxes may touch at intended interfaces but must not overlap by positive volume. Use local shape
+coordinates plus transforms so component envelopes remain auditable. A connector must declare
+at least two must_contact components; a fastener must declare at least one. Place paired gussets
+on genuinely disjoint faces or replace them with one intentionally modeled corner connector.
+Do not overlap two plates and rely on a valid union. Do not fuse standard hardware into a stock
+component merely to bypass component validation.
+
+For a multi-component assembly, use core primitives only. The current audited nop_* planner
+surface does not declare conservative placement bounds and is therefore limited to single-
+component designs until its bounds contracts are added.
 
 Use millimetres. Prefer simple, auditable primitives. Treat dimensions inferred from an
 image as assumptions unless a trustworthy scale reference is visible. Do not claim that

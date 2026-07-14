@@ -12,10 +12,17 @@ from seecad.config import Settings
 from seecad.engine import OpenSCADEngine
 from seecad.errors import EngineUnavailableError
 from seecad.models import (
+    AssemblyComponent,
+    ComponentKind,
+    Cylinder,
     DesignSpec,
     LibraryCall,
+    NegativeFeature,
+    NegativeIntent,
     NumberArgument,
     PositiveSolid,
+    Transform,
+    Vec3,
     VectorArgument,
 )
 from seecad.scad import ScadGenerator
@@ -123,10 +130,19 @@ def test_pinned_worker_compiles_and_analyzes_audited_nopscad_primitive(
         name="Pinned worker integration",
         intent="Compile one audited NopSCADlib rounded solid.",
         units="mm",
+        components=(
+            AssemblyComponent(
+                id="part",
+                name="Part",
+                kind=ComponentKind.PART,
+                purpose="One audited library component",
+            ),
+        ),
         positive_solids=(
             PositiveSolid(
                 id="body",
                 name="Body",
+                component_id="part",
                 shape=LibraryCall(
                     source_path="utils/core/rounded_rectangle.scad",
                     module="rounded_rectangle",
@@ -137,8 +153,20 @@ def test_pinned_worker_compiles_and_analyzes_audited_nopscad_primitive(
                 ),
             ),
         ),
+        negative_features=(
+            NegativeFeature(
+                id="audited-bore",
+                name="Audited through bore",
+                shape=Cylinder(radius=1, height=4),
+                transform=Transform(translate=Vec3(x=5, y=4, z=-1)),
+                intent=NegativeIntent.THROUGH_HOLE,
+                rationale="Exercise component-scoped subtraction in the pinned worker.",
+                target_component_ids=("part",),
+            ),
+        ),
     )
     generated = ScadGenerator(nopscad_root=settings.nopscad_root).generate(spec)
+    assert "scoped_negative_id_audited_hbore" in generated.source
     compiled = engine.compile(generated.source, output_format="stl")
     assert len(compiled.content) > 1024
     analysis = MeshAnalyzer().analyze_stl(compiled.content, profile=spec.print_profile)

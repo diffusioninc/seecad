@@ -11,8 +11,10 @@ import typer
 from seecad.config import get_settings
 from seecad.errors import SeeCADError
 from seecad.models import (
+    AssemblyComponent,
     CompareRequest,
     CompileRequest,
+    ComponentKind,
     CreateDesignRequest,
     CreateRevisionRequest,
     Cylinder,
@@ -189,10 +191,19 @@ def _demo_spec() -> DesignSpec:
             "deliberately long service-tool passages."
         ),
         units="mm",
+        components=(
+            AssemblyComponent(
+                id="enclosure",
+                name="Enclosure body",
+                kind=ComponentKind.PART,
+                purpose="Single printable enclosure component",
+            ),
+        ),
         positive_solids=(
             PositiveSolid(
                 id="enclosure_body",
                 name="Rounded enclosure body",
+                component_id="enclosure",
                 shape=RoundedBox(size=Vec3(x=86, y=62, z=24), radius=8),
                 purpose="Complete material envelope before voids are applied",
             ),
@@ -205,6 +216,7 @@ def _demo_spec() -> DesignSpec:
                 transform=Transform(translate=Vec3(x=3, y=3, z=3)),
                 intent=NegativeIntent.POCKET,
                 rationale="Leaves a 3 mm floor and nominal 3 mm perimeter walls.",
+                target_component_ids=("enclosure",),
             ),
             *tuple(
                 NegativeFeature(
@@ -214,6 +226,7 @@ def _demo_spec() -> DesignSpec:
                     transform=Transform(translate=Vec3(x=x, y=y, z=14)),
                     intent=NegativeIntent.BLIND_HOLE,
                     rationale="Nominal M3 insert pilot; validate against the selected insert.",
+                    target_component_ids=("enclosure",),
                 )
                 for index, (x, y) in enumerate(((8, 8), (78, 8), (78, 54), (8, 54)), start=1)
             ),
@@ -229,6 +242,7 @@ def _demo_spec() -> DesignSpec:
                 endpoint_overtravel=4,
                 tool="USB plug and inspection tool",
                 rationale="Crosses both wall faces so wall edits do not strand the subtraction.",
+                target_component_ids=("enclosure",),
             ),
             ToolAccessChannel(
                 id="probe_service_channel",
@@ -239,6 +253,7 @@ def _demo_spec() -> DesignSpec:
                 endpoint_overtravel=4,
                 tool="4 mm calibration probe",
                 rationale="Provides a straight service path through the enclosure envelope.",
+                target_component_ids=("enclosure",),
             ),
         ),
         assumptions=(

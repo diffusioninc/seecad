@@ -9,15 +9,17 @@ import math
 import re
 from datetime import datetime
 from enum import StrEnum
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal, cast
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
     JsonValue,
+    SerializerFunctionWrapHandler,
     StringConstraints,
     field_validator,
+    model_serializer,
     model_validator,
 )
 
@@ -34,6 +36,7 @@ ScadIdentifier = Annotated[
     ),
 ]
 MIN_GEOMETRY_MM = 1e-6
+ASSEMBLY_ENVELOPE_TOLERANCE_MM = 1e-6
 
 
 class StrictModel(BaseModel):
@@ -261,9 +264,151 @@ Primitive = Annotated[
 ]
 
 
+Bounds3 = tuple[tuple[float, float, float], tuple[float, float, float]]
+
+
+def _primitive_local_bounds(shape: Primitive) -> Bounds3 | None:
+    """Return a conservative local AABB for primitives understood by the core schema."""
+
+    if isinstance(shape, (Box, RoundedBox)):
+        size = shape.size.values()
+        if shape.center:
+            half = tuple(value / 2 for value in size)
+            return tuple(-value for value in half), half  # type: ignore[return-value]
+        return (0.0, 0.0, 0.0), size
+    if isinstance(shape, (Cylinder, Cone)):
+        radius = (
+            shape.radius
+            if isinstance(shape, Cylinder)
+            else max(shape.radius_bottom, shape.radius_top)
+        )
+        z_min = -shape.height / 2 if shape.center else 0.0
+        return (-radius, -radius, z_min), (radius, radius, z_min + shape.height)
+    if isinstance(shape, Sphere):
+        radius = shape.radius
+        return (-radius, -radius, -radius), (radius, radius, radius)
+    if isinstance(shape, Torus):
+        radial = shape.major_radius + shape.minor_radius
+        return (-radial, -radial, -shape.minor_radius), (
+            radial,
+            radial,
+            shape.minor_radius,
+        )
+    if isinstance(shape, ExtrudedPolygon):
+        z_min = -shape.height / 2 if shape.center else 0.0
+        if shape.twist_degrees:
+            radial = max(math.hypot(point.x, point.y) for point in shape.points)
+            return (-radial, -radial, z_min), (radial, radial, z_min + shape.height)
+        return (
+            min(point.x for point in shape.points),
+            min(point.y for point in shape.points),
+            z_min,
+        ), (
+            max(point.x for point in shape.points),
+            max(point.y for point in shape.points),
+            z_min + shape.height,
+        )
+    # Library calls are safe to compile, but their bounds are not part of the
+    # allowlist signature. Multi-component assemblies must use primitives whose
+    # conservative placement envelopes can be proven here.
+    return None
+
+
+def _rotate_xyz(point: tuple[float, float, float], degrees: Vec3) -> tuple[float, float, float]:
+    """Apply OpenSCAD's vector rotation order to one scaled point."""
+
+    x, y, z = point
+    rx, ry, rz = (math.radians(value) for value in degrees.values())
+    y, z = y * math.cos(rx) - z * math.sin(rx), y * math.sin(rx) + z * math.cos(rx)
+    x, z = x * math.cos(ry) + z * math.sin(ry), -x * math.sin(ry) + z * math.cos(ry)
+    x, y = x * math.cos(rz) - y * math.sin(rz), x * math.sin(rz) + y * math.cos(rz)
+    return x, y, z
+
+
+def _transformed_bounds(shape: Primitive, transform: Transform) -> Bounds3 | None:
+    local = _primitive_local_bounds(shape)
+    if local is None:
+        return None
+    low, high = local
+    corners = []
+    for x in (low[0], high[0]):
+        for y in (low[1], high[1]):
+            for z in (low[2], high[2]):
+                scale = transform.scale.values()
+                scaled = (
+                    x * scale[0],
+                    y * scale[1],
+                    z * scale[2],
+                )
+                rotated = _rotate_xyz(scaled, transform.rotate_degrees)
+                corners.append(
+                    tuple(
+                        value + offset
+                        for value, offset in zip(rotated, transform.translate.values(), strict=True)
+                    )
+                )
+    return (
+        tuple(min(point[axis] for point in corners) for axis in range(3)),
+        tuple(max(point[axis] for point in corners) for axis in range(3)),
+    )  # type: ignore[return-value]
+
+
+def _bounds_depths(left: Bounds3, right: Bounds3) -> tuple[float, float, float]:
+    return tuple(
+        min(left[1][axis], right[1][axis]) - max(left[0][axis], right[0][axis]) for axis in range(3)
+    )  # type: ignore[return-value]
+
+
+def _bounds_have_face_contact(left: Bounds3, right: Bounds3) -> bool:
+    depths = _bounds_depths(left, right)
+    return (
+        all(depth >= -ASSEMBLY_ENVELOPE_TOLERANCE_MM for depth in depths)
+        and sum(depth > ASSEMBLY_ENVELOPE_TOLERANCE_MM for depth in depths) >= 2
+        and any(abs(depth) <= ASSEMBLY_ENVELOPE_TOLERANCE_MM for depth in depths)
+    )
+
+
+class ComponentKind(StrEnum):
+    PART = "part"
+    STOCK = "stock"
+    CONNECTOR = "connector"
+    FASTENER = "fastener"
+
+
+class AssemblyComponent(StrictModel):
+    id: SafeIdentifier
+    name: str = Field(min_length=1, max_length=120)
+    kind: ComponentKind
+    purpose: str = Field(min_length=1, max_length=500)
+    must_contact: tuple[SafeIdentifier, ...] = Field(default_factory=tuple, max_length=16)
+
+    @field_validator("kind", mode="before")
+    @classmethod
+    def parse_kind(cls, value: object) -> object:
+        return ComponentKind(value) if isinstance(value, str) else value
+
+    @field_validator("must_contact", mode="before")
+    @classmethod
+    def freeze_contacts(cls, value: object) -> object:
+        return tuple(value) if isinstance(value, list) else value
+
+    @model_validator(mode="after")
+    def contact_contract(self) -> AssemblyComponent:
+        if len(self.must_contact) != len(set(self.must_contact)):
+            raise ValueError("must_contact component ids must be unique")
+        minimum = 2 if self.kind == ComponentKind.CONNECTOR else 1
+        if (
+            self.kind in {ComponentKind.CONNECTOR, ComponentKind.FASTENER}
+            and len(self.must_contact) < minimum
+        ):
+            raise ValueError(f"{self.kind.value} components require at least {minimum} contact(s)")
+        return self
+
+
 class PositiveSolid(StrictModel):
     id: SafeIdentifier
     name: str = Field(min_length=1, max_length=120)
+    component_id: SafeIdentifier | None = None
     shape: Primitive
     transform: Transform = Transform()
     purpose: str = Field(default="primary volume", min_length=1, max_length=500)
@@ -285,11 +430,17 @@ class NegativeFeature(StrictModel):
     transform: Transform = Transform()
     intent: NegativeIntent
     rationale: str = Field(min_length=1, max_length=1000)
+    target_component_ids: tuple[SafeIdentifier, ...] = Field(default_factory=tuple, max_length=32)
 
     @field_validator("intent", mode="before")
     @classmethod
     def parse_intent(cls, value: object) -> object:
         return NegativeIntent(value) if isinstance(value, str) else value
+
+    @field_validator("target_component_ids", mode="before")
+    @classmethod
+    def freeze_targets(cls, value: object) -> object:
+        return tuple(value) if isinstance(value, list) else value
 
 
 class ToolAccessChannel(StrictModel):
@@ -302,7 +453,13 @@ class ToolAccessChannel(StrictModel):
     endpoint_overtravel: float = Field(default=1.0, ge=0, le=10_000)
     tool: str = Field(min_length=1, max_length=120)
     rationale: str = Field(min_length=1, max_length=1000)
+    target_component_ids: tuple[SafeIdentifier, ...] = Field(default_factory=tuple, max_length=32)
     facets: int = Field(default=64, ge=12, le=1024)
+
+    @field_validator("target_component_ids", mode="before")
+    @classmethod
+    def freeze_targets(cls, value: object) -> object:
+        return tuple(value) if isinstance(value, list) else value
 
     @model_validator(mode="after")
     def nonzero_path(self) -> ToolAccessChannel:
@@ -349,10 +506,11 @@ def print_profile_sha256(profile: PrintProfile) -> str:
 
 
 class DesignSpec(StrictModel):
-    schema_version: Literal["1.0"] = "1.0"
+    schema_version: Literal["1.0", "1.1"] = "1.1"
     name: str = Field(min_length=1, max_length=120)
     intent: str = Field(min_length=1, max_length=2000)
     units: Literal["mm"]
+    components: tuple[AssemblyComponent, ...] = Field(default_factory=tuple, max_length=128)
     positive_solids: tuple[PositiveSolid, ...] = Field(min_length=1, max_length=128)
     negative_features: tuple[NegativeFeature, ...] = Field(default_factory=tuple, max_length=128)
     tool_access_channels: tuple[ToolAccessChannel, ...] = Field(
@@ -366,6 +524,7 @@ class DesignSpec(StrictModel):
         "positive_solids",
         "negative_features",
         "tool_access_channels",
+        "components",
         "assumptions",
         "notes",
         mode="before",
@@ -375,7 +534,7 @@ class DesignSpec(StrictModel):
         return tuple(value) if isinstance(value, list) else value
 
     @model_validator(mode="after")
-    def unique_entity_ids(self) -> DesignSpec:
+    def semantic_assembly_contract(self) -> DesignSpec:
         ids = [
             *(solid.id for solid in self.positive_solids),
             *(feature.id for feature in self.negative_features),
@@ -383,7 +542,110 @@ class DesignSpec(StrictModel):
         ]
         if len(ids) != len(set(ids)):
             raise ValueError("all solid, feature, and channel ids must be globally unique")
+        if self.schema_version == "1.0":
+            if (
+                self.components
+                or any(solid.component_id for solid in self.positive_solids)
+                or any(feature.target_component_ids for feature in self.negative_features)
+                or any(channel.target_component_ids for channel in self.tool_access_channels)
+            ):
+                raise ValueError("schema 1.0 cannot contain component-scoped assembly fields")
+            return self
+
+        if not self.components:
+            raise ValueError("schema 1.1 requires explicit assembly components")
+        component_ids = [component.id for component in self.components]
+        if len(component_ids) != len(set(component_ids)):
+            raise ValueError("assembly component ids must be unique")
+        known_components = set(component_ids)
+        for component in self.components:
+            if component.id in component.must_contact:
+                raise ValueError(f"component {component.id!r} cannot contact itself")
+            unknown = set(component.must_contact) - known_components
+            if unknown:
+                raise ValueError(
+                    f"component {component.id!r} references unknown contacts: {sorted(unknown)}"
+                )
+
+        solids_by_component: dict[str, list[tuple[PositiveSolid, Bounds3]]] = {
+            component_id: [] for component_id in component_ids
+        }
+        owned_components: set[str] = set()
+        multi_component = len(component_ids) > 1
+        for solid in self.positive_solids:
+            if solid.component_id not in known_components:
+                raise ValueError(
+                    f"positive solid {solid.id!r} must name a declared assembly component"
+                )
+            owned_components.add(solid.component_id)
+            bounds = _transformed_bounds(solid.shape, solid.transform)
+            if multi_component and bounds is None:
+                raise ValueError(
+                    f"positive solid {solid.id!r} has no bounded assembly envelope; "
+                    "multi-component assemblies require core primitives"
+                )
+            if bounds is not None:
+                solids_by_component[solid.component_id].append((solid, bounds))
+        unused = [
+            component_id for component_id in component_ids if component_id not in owned_components
+        ]
+        if unused:
+            raise ValueError(f"assembly components must own positive solids: {unused}")
+
+        negative_entities: tuple[NegativeFeature | ToolAccessChannel, ...] = (
+            *self.negative_features,
+            *self.tool_access_channels,
+        )
+        for feature in negative_entities:
+            targets = feature.target_component_ids
+            if not targets:
+                raise ValueError(f"negative feature {feature.id!r} requires component targets")
+            if len(targets) != len(set(targets)):
+                raise ValueError(f"negative feature {feature.id!r} has duplicate component targets")
+            unknown = set(targets) - known_components
+            if unknown:
+                raise ValueError(
+                    f"negative feature {feature.id!r} targets unknown components: {sorted(unknown)}"
+                )
+
+        for left_index, left_id in enumerate(component_ids):
+            for right_id in component_ids[left_index + 1 :]:
+                for left_solid, left_bounds in solids_by_component[left_id]:
+                    for right_solid, right_bounds in solids_by_component[right_id]:
+                        depths = _bounds_depths(left_bounds, right_bounds)
+                        if all(depth > ASSEMBLY_ENVELOPE_TOLERANCE_MM for depth in depths):
+                            raise ValueError(
+                                "assembly component envelopes overlap: "
+                                f"{left_id!r}/{left_solid.id!r} and "
+                                f"{right_id!r}/{right_solid.id!r}"
+                            )
+
+        for component in self.components:
+            for contact_id in component.must_contact:
+                has_bounded_contact = any(
+                    _bounds_have_face_contact(left_bounds, right_bounds)
+                    for _, left_bounds in solids_by_component[component.id]
+                    for _, right_bounds in solids_by_component[contact_id]
+                )
+                if not has_bounded_contact:
+                    raise ValueError(
+                        f"component {component.id!r} does not contact required component "
+                        f"{contact_id!r} across a bounded envelope face"
+                    )
         return self
+
+    @model_serializer(mode="wrap")
+    def serialize_versioned(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
+        data = cast(dict[str, Any], handler(self))
+        if self.schema_version == "1.0":
+            data.pop("components", None)
+            for solid in data.get("positive_solids", []):
+                solid.pop("component_id", None)
+            for feature in data.get("negative_features", []):
+                feature.pop("target_component_ids", None)
+            for channel in data.get("tool_access_channels", []):
+                channel.pop("target_component_ids", None)
+        return data
 
 
 class ImageEvidence(StrictModel):

@@ -12,18 +12,24 @@ Language models handle OpenSCAD well until the boolean history starts alternatin
 
 ```text
 design intent
-    ├── positive volume       union the material envelope
-    ├── negative space        subtract holes, pockets, and clearances once
-    └── tool access channels  subtract named approach passageways
+    ├── components            separate stock, parts, connectors, and fasteners
+    ├── positive volume       union each component's material envelope
+    ├── negative space        scope each removal to named target components
+    └── tool access channels  scope named approach passageways the same way
 ```
 
-The compiler always emits one positive phase followed by one consolidated negative phase. A request such as “move the USB opening 2 mm left” targets a named feature, not an ambiguous line in a growing CSG program.
+The compiler always emits one positive phase followed by one consolidated negative phase. Each
+negative is first intersected with its target component volume, so a T-slot belonging to an
+extrusion cannot carve a bracket or screw head. The schema rejects conservative component-envelope
+overlap and missing bounded face contacts for connectors and fasteners before SCAD generation. A
+request such as “move the USB opening 2 mm left” targets a named feature, not an ambiguous line in
+a growing CSG program.
 
 The complete [NopSCADlib](https://github.com/nophead/NopSCADlib) tree is vendored and pinned, giving agents reusable parts, vitamins, fasteners, utilities, and established modeling vocabulary. Safe typed library calls are supported without allowing arbitrary includes or directives.
 
 ## What is here
 
-- Typed Pydantic design model with explicit units, material, process, constraints, positive features, negative features, and tool-access channels.
+- Typed Pydantic design model with explicit units, physical components, bounded assembly contacts, material, process, constraints, positive features, component-targeted negative features, and tool-access channels.
 - Deterministic SCAD generator with a restricted NopSCADlib call surface.
 - Immutable SQLite revision history and SHA-256 content-addressed artifact store.
 - Hardened OpenSCAD engines with time, memory, CPU, PID, network, path, and output bounds. Host development defaults to an ephemeral Docker invocation; Compose uses a dedicated no-network worker over a Unix-domain socket.

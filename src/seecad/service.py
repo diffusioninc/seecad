@@ -16,21 +16,26 @@ from seecad.config import Settings, get_settings
 from seecad.engine import OpenSCADEngine
 from seecad.errors import ConflictError, NotFoundError
 from seecad.models import (
+    ASSEMBLY_ENVELOPE_TOLERANCE_MM,
     AnalysisResponse,
     ApprovalRequest,
     ArtifactRef,
     CompareRequest,
     ComparisonResponse,
     CompileRequest,
+    Confidence,
     CreateDesignRequest,
     CreateRevisionRequest,
     DesignHistoryResponse,
     DesignSpec,
     DifferenceEntry,
+    Finding,
     HealthResponse,
+    Measurement,
     MeshAnalysis,
     PrintProfile,
     RevisionResponse,
+    Severity,
     canonical_print_profile_bytes,
     print_profile_sha256,
 )
@@ -183,6 +188,11 @@ class SeeCADService:
         request: CompileRequest,
     ) -> RevisionResponse:
         revision = self.repository.get_revision(revision_id, design_id=design_id)
+        if revision.spec.schema_version != "1.1":
+            raise ConflictError(
+                "legacy schema 1.0 revisions are read-only; create a component-scoped "
+                "schema 1.1 revision before compiling"
+            )
         if request.format in revision.artifacts:
             return revision
         scad = revision.artifacts.get("scad")
@@ -252,6 +262,11 @@ class SeeCADService:
         profile: PrintProfile | None = None,
     ) -> AnalysisResponse:
         revision = self.repository.get_revision(revision_id, design_id=design_id)
+        if revision.spec.schema_version != "1.1":
+            raise ConflictError(
+                "legacy schema 1.0 revisions cannot receive new acceptance evidence; "
+                "revise to component-scoped schema 1.1 first"
+            )
         effective_profile = profile or revision.spec.print_profile
         profile_digest = print_profile_sha256(effective_profile)
         cached = self._cached_analysis(revision, profile_digest=profile_digest)
@@ -277,6 +292,60 @@ class SeeCADService:
             self.artifacts.get(stl.sha256),
             profile=effective_profile,
             mesh_sha256=stl.sha256,
+        )
+        analysis = analysis.model_copy(
+            update={
+                "measurements": [
+                    *analysis.measurements,
+                    Measurement(
+                        name="component_negative_scope_validated",
+                        value=True,
+                        confidence=Confidence.EXACT,
+                        basis=(
+                            "schema 1.1 requires every negative feature and tool-access "
+                            "channel to name target components; generated SCAD intersects each "
+                            "removal with those component positive volumes"
+                        ),
+                    ),
+                    Measurement(
+                        name="component_envelope_non_interference",
+                        value=True,
+                        confidence=Confidence.BOUNDED,
+                        basis=(
+                            "conservative transformed primitive AABBs for distinct components "
+                            "do not overlap by positive volume beyond "
+                            f"{ASSEMBLY_ENVELOPE_TOLERANCE_MM:g} mm"
+                        ),
+                    ),
+                    Measurement(
+                        name="required_component_face_contacts",
+                        value=True,
+                        confidence=Confidence.BOUNDED,
+                        basis=(
+                            "connector and fastener contact declarations meet conservative "
+                            "transformed-AABB face-contact checks"
+                        ),
+                    ),
+                ],
+                "findings": [
+                    *analysis.findings,
+                    Finding(
+                        code="physical_assembly_fit_unverified",
+                        severity=Severity.INFO,
+                        message=(
+                            "Component scope, non-interference envelopes, and declared contacts "
+                            "do not prove physical fit, bearing support, preload, thread "
+                            "engagement, load transfer, or structural integrity."
+                        ),
+                        confidence=Confidence.UNAVAILABLE,
+                    ),
+                ],
+                "summary": (
+                    f"{analysis.summary} Component scope passed exact ownership validation; "
+                    "component envelopes and declared contacts passed bounded checks. Physical "
+                    "assembly fit and support remain unverified."
+                ),
+            }
         )
         analysis_ref = self.artifacts.put(
             analysis.model_dump_json(indent=2).encode("utf-8"),
@@ -313,12 +382,25 @@ class SeeCADService:
         request: ApprovalRequest,
     ) -> RevisionResponse:
         revision = self.repository.get_revision(revision_id, design_id=design_id)
+        if revision.spec.schema_version != "1.1":
+            raise ConflictError(
+                "legacy schema 1.0 revisions cannot be approved; revise to component-scoped "
+                "schema 1.1 first"
+            )
         if revision.metadata.get("event") == "approved" or "approval" in revision.artifacts:
             raise ConflictError("revision is already an approval attestation")
         if revision.metadata.get("event") != "analyzed":
             raise ConflictError("approval is only available for an analyzed live revision")
 
-        required_roles = ("spec", "scad", "stl", "compile_stl", "analysis", "analysis_profile")
+        required_roles = (
+            "spec",
+            "scad",
+            "manifest",
+            "stl",
+            "compile_stl",
+            "analysis",
+            "analysis_profile",
+        )
         missing_roles = [role for role in required_roles if role not in revision.artifacts]
         if missing_roles:
             raise ConflictError(
@@ -329,6 +411,28 @@ class SeeCADService:
             revision.spec
         ):
             raise ConflictError("spec artifact does not match the analyzed revision")
+
+        try:
+            generation_manifest = json.loads(
+                self.artifacts.get(revision.artifacts["manifest"].sha256)
+            )
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ConflictError("generation manifest is not valid JSON evidence") from exc
+        if not isinstance(generation_manifest, dict):
+            raise ConflictError("generation manifest is not a JSON object")
+        assembly_validation = generation_manifest.get("assembly_validation", {})
+        if (
+            generation_manifest.get("spec_sha256") != revision.artifacts["spec"].sha256
+            or generation_manifest.get("scad_sha256") != revision.artifacts["scad"].sha256
+            or generation_manifest.get("boolean_strategy")
+            != "single_component_scoped_negative_difference_pass"
+            or not isinstance(assembly_validation, dict)
+            or assembly_validation.get("negative_scope_ownership") != "exact_by_construction"
+            or assembly_validation.get("status") != "passed"
+        ):
+            raise ConflictError(
+                "generation manifest does not prove component-scoped assembly validation"
+            )
 
         analysis = MeshAnalysis.model_validate_json(
             self.artifacts.get(revision.artifacts["analysis"].sha256)

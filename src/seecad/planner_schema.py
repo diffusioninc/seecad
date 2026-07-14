@@ -18,8 +18,10 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from seecad.models import (
+    AssemblyComponent,
     BooleanArgument,
     Box,
+    ComponentKind,
     Cone,
     Cylinder,
     DesignSpec,
@@ -327,6 +329,9 @@ class PlannerShape(PlannerModel):
 class PlannerPositiveSolid(PlannerModel):
     id: Annotated[str, Field(min_length=1, max_length=64, pattern=r"^[A-Za-z][A-Za-z0-9_-]*$")]
     name: str = Field(min_length=1, max_length=120)
+    component_id: Annotated[
+        str, Field(min_length=1, max_length=64, pattern=r"^[A-Za-z][A-Za-z0-9_-]*$")
+    ]
     shape: PlannerShape
     transform: PlannerTransform
     purpose: str = Field(min_length=1, max_length=500)
@@ -335,6 +340,7 @@ class PlannerPositiveSolid(PlannerModel):
         return PositiveSolid(
             id=self.id,
             name=self.name,
+            component_id=self.component_id,
             shape=self.shape.to_domain(),
             transform=self.transform.to_domain(),
             purpose=self.purpose,
@@ -348,6 +354,9 @@ class PlannerNegativeFeature(PlannerModel):
     transform: PlannerTransform
     intent: Literal["through_hole", "blind_hole", "pocket", "clearance", "relief", "other"]
     rationale: str = Field(min_length=1, max_length=1000)
+    target_component_ids: list[
+        Annotated[str, Field(min_length=1, max_length=64, pattern=r"^[A-Za-z][A-Za-z0-9_-]*$")]
+    ] = Field(min_length=1, max_length=32)
 
     def to_domain(self) -> NegativeFeature:
         return NegativeFeature(
@@ -357,6 +366,7 @@ class PlannerNegativeFeature(PlannerModel):
             transform=self.transform.to_domain(),
             intent=NegativeIntent(self.intent),
             rationale=self.rationale,
+            target_component_ids=tuple(self.target_component_ids),
         )
 
 
@@ -370,6 +380,9 @@ class PlannerToolAccessChannel(PlannerModel):
     endpoint_overtravel: float = Field(ge=0, le=10_000)
     tool: str = Field(min_length=1, max_length=120)
     rationale: str = Field(min_length=1, max_length=1000)
+    target_component_ids: list[
+        Annotated[str, Field(min_length=1, max_length=64, pattern=r"^[A-Za-z][A-Za-z0-9_-]*$")]
+    ] = Field(min_length=1, max_length=32)
     facets: int = Field(ge=12, le=1024)
 
     def to_domain(self) -> ToolAccessChannel:
@@ -383,7 +396,27 @@ class PlannerToolAccessChannel(PlannerModel):
             endpoint_overtravel=self.endpoint_overtravel,
             tool=self.tool,
             rationale=self.rationale,
+            target_component_ids=tuple(self.target_component_ids),
             facets=self.facets,
+        )
+
+
+class PlannerAssemblyComponent(PlannerModel):
+    id: Annotated[str, Field(min_length=1, max_length=64, pattern=r"^[A-Za-z][A-Za-z0-9_-]*$")]
+    name: str = Field(min_length=1, max_length=120)
+    kind: Literal["part", "stock", "connector", "fastener"]
+    purpose: str = Field(min_length=1, max_length=500)
+    must_contact: list[
+        Annotated[str, Field(min_length=1, max_length=64, pattern=r"^[A-Za-z][A-Za-z0-9_-]*$")]
+    ] = Field(max_length=16)
+
+    def to_domain(self) -> AssemblyComponent:
+        return AssemblyComponent(
+            id=self.id,
+            name=self.name,
+            kind=ComponentKind(self.kind),
+            purpose=self.purpose,
+            must_contact=tuple(self.must_contact),
         )
 
 
@@ -411,10 +444,11 @@ class PlannerPrintProfile(PlannerModel):
 
 
 class PlannerDesignSpec(PlannerModel):
-    schema_version: Literal["1.0"]
+    schema_version: Literal["1.1"]
     name: str = Field(min_length=1, max_length=120)
     intent: str = Field(min_length=1, max_length=2000)
     units: Literal["mm"]
+    components: list[PlannerAssemblyComponent] = Field(min_length=1, max_length=128)
     positive_solids: list[PlannerPositiveSolid] = Field(min_length=1, max_length=128)
     negative_features: list[PlannerNegativeFeature] = Field(max_length=128)
     tool_access_channels: list[PlannerToolAccessChannel] = Field(max_length=128)
@@ -428,6 +462,7 @@ class PlannerDesignSpec(PlannerModel):
             name=self.name,
             intent=self.intent,
             units=self.units,
+            components=tuple(component.to_domain() for component in self.components),
             positive_solids=tuple(solid.to_domain() for solid in self.positive_solids),
             negative_features=tuple(feature.to_domain() for feature in self.negative_features),
             tool_access_channels=tuple(

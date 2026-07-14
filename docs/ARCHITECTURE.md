@@ -4,22 +4,35 @@ SeeCAD is a local-first CAD reasoning system for agents and human reviewers. The
 
 ## Constructive design contract
 
-The semantic model has three ordered layers:
+Schema 1.1 models a design as explicit physical components. Every positive solid belongs to
+one component, and every negative feature and tool-access channel names the components it may
+cut. The semantic model has three ordered layers:
 
-1. **Positive volume** — named primitives and reusable NopSCADlib parts are united into the intended material envelope.
-2. **Negative space** — named bores, pockets, clearances, slots, and channels are united and subtracted once from the positive envelope.
-3. **Tool access** — access passageways are a specialized negative feature with an approach vector, tool diameter, working depth, and clearance. They remain explicit so an agent can modify access without rediscovering the boolean tree.
+1. **Positive volume** — named primitives and reusable NopSCADlib parts are grouped by physical component and then united into the intended material envelope.
+2. **Negative space** — named bores, pockets, clearances, slots, and channels are intersected with their target component envelopes, united, and subtracted once from the positive envelope.
+3. **Tool access** — access passageways are a specialized, component-targeted negative feature with an approach vector, tool diameter, working depth, and clearance. They remain explicit so an agent can modify access without rediscovering the boolean tree.
 
 The SCAD compiler emits this shape:
 
 ```scad
 difference() {
-  union() { positive_features(); }
-  union() { negative_features(); tool_access_channels(); }
+  union() { component_positive_volumes(); }
+  union() {
+    intersection() { negative_feature(); target_component_positive_volume(); }
+    intersection() { tool_access_channel(); target_component_positive_volume(); }
+  }
 }
 ```
 
-This avoids alternating boolean histories that are hard for language models to preserve. A generated `.scad` file is an inspectable derivative of the semantic model. Arbitrary hand-written SCAD is deliberately outside the trusted input contract.
+This retains one design-level `difference()` without allowing an extrusion slot, bore, or
+service passage to carve brackets, fasteners, or other non-target components. Distinct
+component solids must also pass a conservative transformed-AABB non-interference check.
+Connectors declare at least two required contacts and fasteners at least one; required contacts
+must present bounded AABB face contact. These assembly checks are deliberately labeled bounded:
+they reject envelope overlap and obvious floating hardware but do not prove load transfer,
+preload, fit, or structural integrity. See [Assembly geometry safety](ASSEMBLY-SAFETY.md).
+
+This avoids alternating boolean histories that are hard for language models to preserve. A generated `.scad` file is an inspectable derivative of the semantic model. Arbitrary hand-written SCAD is deliberately outside the trusted input contract. Historical schema 1.0 revisions remain readable as immutable evidence, but cannot receive new compile, analysis, or approval artifacts.
 
 ## Revision and evidence pipeline
 
@@ -71,10 +84,10 @@ The worker build ID is content-derived at image build time from the Dockerfile, 
 
 ## Analysis trust levels
 
-- `exact`: directly computed from the compiled mesh, such as triangle and vertex counts, bounds, surface area, volume, component count, winding consistency, and watertightness.
-- `bounded`: computed under an explicit process or numerical assumption, currently the current-orientation AABB fit against the configured build volume and the scale-relative degenerate-triangle threshold.
+- `exact`: directly computed from the compiled mesh, such as triangle and vertex counts, bounds, surface area, volume, component count, winding consistency, and watertightness; or structurally guaranteed by schema/compiler construction, such as component-targeted negative ownership.
+- `bounded`: computed under an explicit process or numerical assumption, currently component non-interference and required face contact from conservative transformed AABBs, the current-orientation build-volume fit, and the scale-relative degenerate-triangle threshold.
 - `heuristic`: useful evidence that is not proof, currently the downward-facing area/support signal derived from face normals.
-- `unavailable`: a requested engineering property that the analyzer did not solve, currently minimum wall thickness and structural integrity.
+- `unavailable`: a requested engineering property that the analyzer did not solve, currently minimum wall thickness, physical assembly fit and support, and structural integrity.
 
 Structural integrity is intentionally not claimed. A future solver adapter may add load cases and material models, but results must retain assumptions and solver provenance.
 

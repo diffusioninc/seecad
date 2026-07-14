@@ -210,16 +210,25 @@ def verify_audited_nop_primitives(
     verified: dict[str, dict[str, Any]] = {}
     for solid, expected_ranges in cases:
         entity_id = str(solid["id"])
+        component_id = "audited-part"
         created = request_json(
             "POST",
             "/v1/designs",
             {
                 "spec": {
-                    "schema_version": "1.0",
+                    "schema_version": "1.1",
                     "name": str(solid["name"]),
                     "intent": f"Render only the audited {entity_id} primitive.",
                     "units": "mm",
-                    "positive_solids": [solid],
+                    "components": [
+                        {
+                            "id": component_id,
+                            "name": "Audited part",
+                            "kind": "part",
+                            "purpose": "Single audited NopSCADlib primitive.",
+                        }
+                    ],
+                    "positive_solids": [{**solid, "component_id": component_id}],
                     "negative_features": [],
                     "tool_access_channels": [],
                 }
@@ -291,14 +300,23 @@ def main() -> None:
         "/v1/designs",
         {
             "spec": {
-                "schema_version": "1.0",
+                "schema_version": "1.1",
                 "name": "Compose boundary smoke",
                 "intent": "Exercise positive volume, consolidated subtraction, and tool access.",
                 "units": "mm",
+                "components": [
+                    {
+                        "id": "body-component",
+                        "name": "Body component",
+                        "kind": "part",
+                        "purpose": "Single fabricated smoke-test body.",
+                    }
+                ],
                 "positive_solids": [
                     {
                         "id": "body",
                         "name": "Body",
+                        "component_id": "body-component",
                         "shape": {"kind": "box", "size": {"x": 20.0, "y": 12.0, "z": 8.0}},
                     }
                 ],
@@ -310,6 +328,7 @@ def main() -> None:
                         "transform": {"translate": {"x": 10.0, "y": 6.0, "z": -2.0}},
                         "intent": "through_hole",
                         "rationale": "Fastener clearance.",
+                        "target_component_ids": ["body-component"],
                     }
                 ],
                 "tool_access_channels": [
@@ -322,6 +341,7 @@ def main() -> None:
                         "endpoint_overtravel": 2.0,
                         "tool": "3 mm driver",
                         "rationale": "Keep the approach path independent of later wall edits.",
+                        "target_component_ids": ["body-component"],
                     }
                 ],
             }
