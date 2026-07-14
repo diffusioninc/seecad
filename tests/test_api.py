@@ -156,3 +156,39 @@ def test_http_approval_requires_and_preserves_live_analysis(
     assert approved["metadata"]["event"] == "approved"
     assert set(analyzed["artifacts"]).issubset(approved["artifacts"])
     assert "approval" in approved["artifacts"]
+
+
+def test_http_proof_sheets_are_an_explicit_review_operation(
+    tmp_path: Path, simple_spec: DesignSpec
+) -> None:
+    service, _engine = make_service(tmp_path)
+    app = create_app()
+    app.dependency_overrides[get_service] = lambda: service
+    with TestClient(app) as client:
+        created = client.post(
+            "/v1/designs", json={"spec": simple_spec.model_dump(mode="json")}
+        ).json()
+        generated = client.post(
+            f"/v1/designs/{created['design_id']}/revisions/{created['revision_id']}/proof-sheets",
+            json={
+                "auto_compile": True,
+                "view_count": 1024,
+                "resolution_px": 64,
+                "views_per_sheet": 64,
+            },
+        )
+        assert generated.status_code == 200, generated.text
+        revision = generated.json()
+        assert revision["metadata"]["event"] == "proof_sheets_generated"
+        assert revision["metadata"]["proof_sheet_projection_count"] == 1024
+        assert "proof_sheets" in revision["artifacts"]
+
+        review = client.get(
+            f"/v1/designs/{revision['design_id']}/revisions/{revision['revision_id']}/export",
+            params={"format": "proof_sheets"},
+        )
+        assert review.status_code == 200
+        assert review.headers["content-type"].startswith("text/html")
+        assert review.headers["content-disposition"].startswith("inline;")
+        assert "default-src 'none'" in review.headers["content-security-policy"]
+        assert "Heuristic visual-review aid" in review.text

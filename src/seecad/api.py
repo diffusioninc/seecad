@@ -26,6 +26,7 @@ from seecad.models import (
     CreateRevisionRequest,
     DesignHistoryResponse,
     HealthResponse,
+    ProofSheetRequest,
     RevisionResponse,
 )
 from seecad.service import SeeCADService
@@ -209,6 +210,21 @@ def create_app(*, request_limit_bytes: int = API_REQUEST_LIMIT_BYTES) -> FastAPI
         return await run_in_threadpool(service.compile_revision, design_id, revision_id, payload)
 
     @application.post(
+        "/v1/designs/{design_id}/revisions/{revision_id}/proof-sheets",
+        response_model=RevisionResponse,
+        tags=["analysis"],
+    )
+    async def generate_proof_sheets(
+        design_id: str,
+        revision_id: str,
+        payload: ProofSheetRequest,
+        service: ServiceDependency,
+    ) -> RevisionResponse:
+        return await run_in_threadpool(
+            service.generate_proof_sheets, design_id, revision_id, payload
+        )
+
+    @application.post(
         "/v1/designs/{design_id}/revisions/{revision_id}/analyze",
         response_model=AnalysisResponse,
         tags=["analysis"],
@@ -264,18 +280,38 @@ def create_app(*, request_limit_bytes: int = API_REQUEST_LIMIT_BYTES) -> FastAPI
         design_id: str,
         revision_id: str,
         service: ServiceDependency,
-        format: Annotated[Literal["spec", "scad", "stl", "3mf", "analysis"], Query()] = "scad",
+        format: Annotated[
+            Literal[
+                "spec",
+                "scad",
+                "stl",
+                "3mf",
+                "analysis",
+                "proof_sheet_manifest",
+                "proof_sheets",
+                "proof_sheet_archive",
+            ],
+            Query(),
+        ] = "scad",
     ) -> Response:
         data, artifact = await run_in_threadpool(
             service.export_revision, design_id, revision_id, format
         )
+        disposition = "inline" if format == "proof_sheets" else "attachment"
+        headers = {
+            "Content-Disposition": f'{disposition}; filename="{artifact.filename}"',
+            "ETag": f'"sha256:{artifact.sha256}"',
+            "X-Content-Type-Options": "nosniff",
+        }
+        if format == "proof_sheets":
+            headers["Content-Security-Policy"] = (
+                "default-src 'none'; img-src data:; style-src 'unsafe-inline'; "
+                "base-uri 'none'; frame-ancestors 'none'; sandbox"
+            )
         return Response(
             content=data,
             media_type=artifact.media_type,
-            headers={
-                "Content-Disposition": f'attachment; filename="{artifact.filename}"',
-                "ETag": f'"sha256:{artifact.sha256}"',
-            },
+            headers=headers,
         )
 
     return application

@@ -53,6 +53,22 @@ For a single standalone mesh outside assembly scope, agents may use the read-onl
 disconnected shells are not a physical-instance inventory, and multi-instance scene files must be
 routed to the assembly manifest workflow above.
 
+For a request that only asks to open, display, orbit, or visually review imported OBJ/MTL geometry,
+use the browser-local workflow in [docs/IMPORTING-ASSEMBLIES.md](docs/IMPORTING-ASSEMBLIES.md).
+Keep source units undeclared until a human explicitly confirms millimetres. Treat OBJ objects,
+materials, and mesh groups as visual source records only, never as a physical-instance inventory.
+Do not flatten to STL or create a `DesignSpec` merely to make an imported assembly appear in the
+generated-design workbench.
+
+## Proof sheets (explicit mode only)
+
+Use the workflow in [docs/PROOF-SHEETS.md](docs/PROOF-SHEETS.md) only when a user deliberately asks
+for proof sheets or broad visual projection review of a compiled SeeCAD revision. Never generate
+proof sheets implicitly during create, revise, compile, analyze, approval, mesh lint, or assembly
+lint. Label the projection catalog as heuristic visual-review evidence. It never substitutes for
+assembly lint, mesh lint, exact collision checks, fit verification, manufacturability analysis, or
+structural analysis.
+
 ## Verification
 
 Run `make check` for normal changes. Engine or container changes also require `make integration`. UI changes require `make web-check` and a browser screenshot review at desktop and mobile widths.

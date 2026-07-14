@@ -2449,6 +2449,44 @@ button:disabled {
   text-transform: uppercase;
 }
 
+.open-import-link {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  margin: 0 16px 15px;
+  padding: 9px 10px;
+  color: var(--graphite);
+  text-decoration: none;
+  background: var(--polymer-low);
+  border-left: 2px solid var(--cyan-dark);
+}
+
+.open-import-link > svg {
+  color: var(--cyan-dark);
+}
+
+.open-import-link span {
+  display: grid;
+  gap: 2px;
+}
+
+.open-import-link strong {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.open-import-link small {
+  color: var(--steel-dark);
+  font-size: 8px;
+}
+
+.open-import-link:hover {
+  background: #e1f3f5;
+}
+
 .modal-divider {
   display: flex;
   align-items: center;

@@ -16,6 +16,7 @@ from seecad.models import (
     CreateRevisionRequest,
     DesignSpec,
     ImageEvidence,
+    ProofSheetRequest,
 )
 from seecad.service import SeeCADService
 
@@ -91,6 +92,26 @@ def analyze_design(design_id: str, revision_id: str, auto_compile: bool = True) 
 
 
 @mcp.tool()
+def generate_proof_sheets(
+    design_id: str,
+    revision_id: str,
+    view_count: int = 2048,
+    resolution_px: int = 96,
+    views_per_sheet: int = 64,
+    auto_compile: bool = True,
+) -> dict[str, Any]:
+    """Explicitly render heuristic 2D proof sheets; this never runs automatically."""
+
+    request = ProofSheetRequest(
+        auto_compile=auto_compile,
+        view_count=view_count,
+        resolution_px=resolution_px,
+        views_per_sheet=views_per_sheet,
+    )
+    return _service().generate_proof_sheets(design_id, revision_id, request).model_dump(mode="json")
+
+
+@mcp.tool()
 def get_design(design_id: str, revision_id: str | None = None) -> dict[str, Any]:
     """Read one immutable revision or the full design history."""
 
@@ -123,7 +144,16 @@ def compare_designs(left_revision_id: str, right_revision_id: str) -> dict[str, 
 def export_design(
     design_id: str,
     revision_id: str,
-    artifact_format: Literal["spec", "scad", "stl", "3mf", "analysis"] = "scad",
+    artifact_format: Literal[
+        "spec",
+        "scad",
+        "stl",
+        "3mf",
+        "analysis",
+        "proof_sheet_manifest",
+        "proof_sheets",
+        "proof_sheet_archive",
+    ] = "scad",
 ) -> dict[str, Any]:
     """Export metadata and inline only small artifacts; use HTTP for large derivatives."""
 

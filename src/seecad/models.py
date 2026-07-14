@@ -804,6 +804,15 @@ class CompileRequest(StrictModel):
     format: Literal["stl", "3mf"] = "stl"
 
 
+class ProofSheetRequest(StrictModel):
+    """Explicit high-coverage visual-review mode for one compiled revision."""
+
+    auto_compile: bool = True
+    view_count: int = Field(default=2048, ge=1024, le=4096)
+    resolution_px: int = Field(default=96, ge=64, le=192)
+    views_per_sheet: int = Field(default=64, ge=16, le=256, multiple_of=8)
+
+
 class AnalyzeRequest(StrictModel):
     auto_compile: bool = True
     profile: PrintProfile | None = None

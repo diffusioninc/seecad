@@ -281,6 +281,8 @@ function stateFrom(payload: BackendRevisionResponse): Revision["state"] {
   const metadata = record(payload.metadata);
   const event = metadata.event;
   if (metadata.approved === true || event === "approved") return "approved";
+  if (payload.artifacts?.approval && event === "proof_sheets_generated")
+    return "approved";
   if (payload.artifacts?.analysis || event === "analyzed") return "analyzed";
   if (
     payload.artifacts?.stl ||
@@ -681,6 +683,25 @@ export async function analyzeRevision(
       }),
     },
     180_000,
+  );
+}
+
+export async function generateProofSheets(
+  designId: string,
+  revisionId: string,
+): Promise<BackendRevisionResponse> {
+  return request(
+    `/designs/${encodeURIComponent(designId)}/revisions/${encodeURIComponent(revisionId)}/proof-sheets`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        auto_compile: true,
+        view_count: 2048,
+        resolution_px: 96,
+        views_per_sheet: 64,
+      }),
+    },
+    300_000,
   );
 }
 

@@ -35,6 +35,7 @@ from seecad.models import (
     NegativeIntent,
     PositiveSolid,
     PrintProfile,
+    ProofSheetRequest,
     RoundedBox,
     ToolAccessChannel,
     Transform,
@@ -318,6 +319,55 @@ def analyze(
     try:
         result = _service().analyze_revision(design_id, revision_id, auto_compile=auto_compile)
         _emit(result)
+    except SeeCADError as exc:
+        _fail(exc)
+
+
+@app.command("proof-sheets")
+def proof_sheets(
+    design_id: str,
+    revision_id: str,
+    views: Annotated[
+        int,
+        typer.Option("--views", min=1024, max=4096, help="Orthographic viewpoints to render."),
+    ] = 2048,
+    resolution: Annotated[
+        int,
+        typer.Option(
+            "--resolution", min=64, max=192, help="Width and height of each projection in pixels."
+        ),
+    ] = 96,
+    views_per_sheet: Annotated[
+        int,
+        typer.Option(
+            "--views-per-sheet",
+            min=16,
+            max=256,
+            help="Projection count in each review section; must be divisible by eight.",
+        ),
+    ] = 64,
+    auto_compile: Annotated[
+        bool,
+        typer.Option(help="Compile an STL first when the revision has no STL artifact."),
+    ] = True,
+) -> None:
+    """Deliberately generate heuristic visual proof sheets for a compiled revision."""
+
+    try:
+        request = ProofSheetRequest(
+            auto_compile=auto_compile,
+            view_count=views,
+            resolution_px=resolution,
+            views_per_sheet=views_per_sheet,
+        )
+        result = _service().generate_proof_sheets(design_id, revision_id, request)
+        _emit(result)
+    except ValidationError as exc:
+        _invalid(
+            "invalid_proof_sheet_options",
+            "Could not validate proof-sheet options",
+            details=exc.errors(include_url=False, include_input=False),
+        )
     except SeeCADError as exc:
         _fail(exc)
 

@@ -71,14 +71,16 @@ flowchart LR
     R --> C["Sandboxed OpenSCAD compile"]
     C --> M["STL / 3MF"]
     M --> V["Interactive six-camera vision rig"]
+    M --> PS["Explicit proof-sheet generation"]
     M --> A["Geometry + bounded DFM checks"]
     A --> E["Analysis artifact"]
     V --> H["Human review / branch / reject"]
+    PS --> H
     E --> H
     H --> P["Immutable approval attestation"]
 ```
 
-Each artifact is addressed by its SHA-256 digest. Source revisions record the semantic spec, generated SCAD, manifest, and exact planner input, including typed print-profile and load constraints. Compile revisions add the mesh and a bounded diagnostics report with engine identity, elapsed time, and verified remote-worker provenance when applicable. Analysis revisions record the exact canonical `PrintProfile`, its SHA-256, the mesh digest, and exact, bounded, heuristic, and unavailable findings. An approval is allowed only from an analyzed revision; its immutable child preserves every parent artifact and adds an attestation that references the exact spec, STL, compile report, analysis, and profile digests. Demo evidence export reads every file from the final analyzed revision and adds a deterministic inventory that binds each role and digest to the complete source/compile/analysis revision chain. Derived files can be regenerated from the semantic design without treating the mesh as source of truth.
+Each artifact is addressed by its SHA-256 digest. Source revisions record the semantic spec, generated SCAD, manifest, and exact planner input, including typed print-profile and load constraints. Compile revisions add the mesh and a bounded diagnostics report with engine identity, elapsed time, and verified remote-worker provenance when applicable. Analysis revisions record the exact canonical `PrintProfile`, its SHA-256, the mesh digest, and exact, bounded, heuristic, and unavailable findings. A deliberately invoked proof-sheet revision adds a deterministic high-coverage orthographic projection catalog, self-contained review HTML, and an offline archive without changing semantic design authority or claiming collision proof. An approval is allowed only from a revision carrying live analysis evidence; its immutable child preserves every parent artifact and adds an attestation that references the exact spec, STL, compile report, analysis, and profile digests. Demo evidence export reads every file from the final analyzed revision and adds a deterministic inventory that binds each role and digest to the complete source/compile/analysis revision chain. Derived files can be regenerated from the semantic design without treating the mesh as source of truth.
 
 ## Surfaces
 
@@ -88,7 +90,7 @@ Each artifact is addressed by its SHA-256 digest. Source revisions record the se
 - **MCP server** exposes compact, typed CAD tools to model clients.
 - **React workbench** gives humans the same revision, views, metrics, and findings that the agent sees.
 
-No surface has a private implementation of compile or analysis behavior.
+No surface has a private implementation of compile, analysis, or proof-sheet behavior.
 The pure assembly linter is intentionally CLI-first, stateless, and independent of the design
 service, database, planner, and OpenSCAD worker.
 
@@ -123,4 +125,4 @@ Structural integrity is intentionally not claimed. A future solver adapter may a
 
 ## Future engine adapters
 
-The present engine compiles typed designs through OpenSCAD. CadQuery, FreeCAD, slicers, render capture, and G-code interpreters can later implement the same immutable artifact/provenance boundary without changing revision semantics.
+The present engine compiles typed designs through OpenSCAD. Proof sheets are a separate, opt-in STL projection adapter and remain heuristic visual evidence. CadQuery, FreeCAD, slicers, richer render capture, and G-code interpreters can later implement the same immutable artifact/provenance boundary without changing revision semantics.

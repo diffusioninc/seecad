@@ -13,6 +13,7 @@ import {
   FolderOpen,
   GitCompareArrows,
   HelpCircle,
+  Images,
   Menu,
   PanelBottomOpen,
   Play,
@@ -34,6 +35,7 @@ import {
   createSpecRevision,
   DESIGN_ID_PATTERN,
   downloadExport,
+  generateProofSheets,
   initialDesignId,
   loadWorkbench,
   mergeCompileResult,
@@ -239,6 +241,13 @@ function OpenDesignDialog({
             Open design
           </button>
         </form>
+        <a className="open-import-link" href="/import.html">
+          <Box size={15} />
+          <span>
+            <strong>Open local assembly preview</strong>
+            <small>Read ZIP or OBJ in this browser without creating a revision.</small>
+          </span>
+        </a>
         <div className="modal-divider">
           <span>or begin a new history</span>
         </div>
@@ -557,6 +566,59 @@ export default function App() {
     },
   });
 
+  const proofSheets = useMutation({
+    mutationFn: async () => {
+      if (!project || !activeRevision) throw new Error("No active revision");
+      if (data?.source !== "api")
+        throw new Error("Proof sheets require a live compiled revision");
+      addLog(
+        "info",
+        `Generating 2,048 proof-sheet projections for ${activeRevision.id}`,
+      );
+      return mergeCompileResult(
+        await generateProofSheets(project.id, activeRevision.id),
+        activeRevision,
+      );
+    },
+    onSuccess: (revision) => {
+      updateProject((payload) => ({
+        ...payload,
+        project: {
+          ...payload.project,
+          activeRevisionId: revision.id,
+          revisions: [
+            revision,
+            ...payload.project.revisions.filter(
+              (candidate) => candidate.id !== revision.id,
+            ),
+          ],
+        },
+      }));
+      addLog(
+        "ok",
+        `Proof sheets ready · 2,048 heuristic projections · ${revision.id}`,
+      );
+      setToast({
+        tone: "ok",
+        message: "Proof sheets ready · open the review artifact",
+      });
+      if (revision.id !== activeRevision?.id)
+        setBaselineId(activeRevision?.id ?? "");
+      void queryClient.invalidateQueries({
+        queryKey: ["workbench", designId],
+      });
+    },
+    onError: (failure) => {
+      addLog(
+        "error",
+        failure instanceof Error
+          ? failure.message
+          : "Proof-sheet generation failed",
+      );
+      setToast({ tone: "warn", message: "Proof-sheet generation failed" });
+    },
+  });
+
   const approve = useMutation({
     mutationFn: async () => {
       if (!project || !activeRevision) throw new Error("No active revision");
@@ -842,9 +904,23 @@ export default function App() {
             {exportOpen && (
               <div className="export-popover">
                 {(
-                  ["stl", "3mf", "scad", "spec", "analysis"] as ExportFormat[]
+                  [
+                    "stl",
+                    "3mf",
+                    "scad",
+                    "spec",
+                    "analysis",
+                    "proof_sheets",
+                    "proof_sheet_archive",
+                  ] as ExportFormat[]
                 ).map((format) => {
                   const available = canExportRevision(activeRevision, format);
+                  const label =
+                    format === "proof_sheets"
+                      ? "PROOF SHEETS"
+                      : format === "proof_sheet_archive"
+                        ? "PROOF ZIP"
+                        : format.toUpperCase();
                   return (
                     <button
                       type="button"
@@ -853,20 +929,24 @@ export default function App() {
                       disabled={!available}
                       title={
                         available
-                          ? `Export ${format.toUpperCase()}`
-                          : `${format.toUpperCase()} is not present on this revision`
+                          ? `Export ${label}`
+                          : `${label} is not present on this revision`
                       }
                     >
                       <FileBox size={13} />
-                      <span>{format.toUpperCase()}</span>
+                      <span>{label}</span>
                       <small>
                         {!available
                           ? "not on active revision"
-                          : format === "analysis"
-                            ? "evidence record"
-                            : format === "spec"
-                              ? "design contract"
-                              : "revision artifact"}
+                          : format === "proof_sheets"
+                            ? "visual review"
+                            : format === "proof_sheet_archive"
+                              ? "individual projections"
+                              : format === "analysis"
+                                ? "evidence record"
+                                : format === "spec"
+                                  ? "design contract"
+                                  : "revision artifact"}
                       </small>
                     </button>
                   );
@@ -1078,6 +1158,28 @@ export default function App() {
                 <ShieldCheck size={14} />
               )}
               {analyze.isPending ? "Analyzing…" : "Analyze"}
+            </button>
+            <button
+              type="button"
+              className="strip-action"
+              onClick={() =>
+                activeRevision.artifacts.proof_sheets
+                  ? exportRevision("proof_sheets")
+                  : proofSheets.mutate()
+              }
+              disabled={data.source !== "api" || proofSheets.isPending}
+              title="Explicitly generate or review heuristic 2D projection sheets"
+            >
+              {proofSheets.isPending ? (
+                <CircleDashed className="spin" size={14} />
+              ) : (
+                <Images size={14} />
+              )}
+              {proofSheets.isPending
+                ? "Rendering sheets…"
+                : activeRevision.artifacts.proof_sheets
+                  ? "Review proof sheets"
+                  : "Generate proof sheets"}
             </button>
             <button
               type="button"

@@ -25,6 +25,9 @@ importers:
       "@tanstack/react-query":
         specifier: ^5.90.20
         version: 5.101.2(react@19.2.7)
+      fflate:
+        specifier: 0.8.3
+        version: 0.8.3
       lucide-react:
         specifier: ^0.468.0
         version: 0.468.0(react@19.2.7)

@@ -57,10 +57,12 @@ The central inspection flow remains available on a narrow screen; project detail
 
 - Typed Pydantic design model with explicit units, physical components, bounded assembly contacts, material, process, constraints, positive features, component-targeted negative features, and tool-access channels.
 - Standalone assembly linter that inventories individual part instances, identifies fasteners and linked tool cones, and performs bounded conservative tool-access checks without compiling CAD.
+- Browser-local read-only OBJ/MTL assembly preview that preserves source visual groups without uploading CAD, inferring units, or creating a design revision.
 - Deterministic SCAD generator with a restricted NopSCADlib call surface.
 - Immutable SQLite revision history and SHA-256 content-addressed artifact store.
 - Hardened OpenSCAD engines with time, memory, CPU, PID, network, path, and output bounds. Host development defaults to an ephemeral Docker invocation; Compose uses a dedicated no-network worker over a Unix-domain socket.
 - STL/3MF compilation and a live six-camera inspection rig backed by the compiled STL.
+- Deliberately invoked proof sheets with thousands of deterministic orthographic projections, a self-contained visual review surface, and a mesh-bound manifest.
 - Mesh and DFM evidence: triangle and vertex counts, bounded degenerate-triangle detection, bounds, area, volume, components, watertightness, winding consistency, configured build-volume fit, and face-normal overhang burden. Checks that are not actually solved, such as minimum wall thickness, are returned as unavailable.
 - Standalone single-mesh linting for STL, OBJ, PLY, OFF, GLB, and 3MF, with an explicit millimetre declaration, content digest, print-profile evidence, and ranked non-mutating axis-aligned orientation candidates.
 - Canonical print-profile evidence and immutable human approval attestations that preserve the exact spec, mesh, compile report, and analysis digest chain.
@@ -165,6 +167,31 @@ overhang ranking. It does not run a slicer, repair the model, guess units, prove
 thickness, or substitute for the mandatory assembly manifest workflow. See the
 [standalone mesh-lint contract](docs/MESH-LINT.md).
 
+### Proof sheets
+
+Proof sheets are a deliberately invoked review mode for a compiled SeeCAD revision. The default
+operation pre-computes 2,048 orthographic projections: six datum views, the corners and edge
+diagonals, then a deterministic spherical distribution. It creates an immutable child revision
+with a self-contained HTML gallery, a ZIP containing every projection PNG, and a JSON manifest that
+binds the catalog to the STL digest.
+
+```bash
+uv run seecad proof-sheets DESIGN_ID REVISION_ID
+uv run seecad export DESIGN_ID PROOF_REVISION_ID \
+  --format proof_sheets --output proof-sheets.html
+```
+
+The same explicit operation is available through `POST
+/v1/designs/{design_id}/revisions/{revision_id}/proof-sheets`, the MCP server, and the workbench's
+`Generate proof sheets` action. Create, revise, compile, and analyze never generate them
+automatically.
+
+The viewpoint catalog and projection hashes are exact derivatives of the recorded mesh and
+algorithm; visual interpretation is heuristic. A clear-looking sheet does not prove collision
+clearance, fit, tool access, manufacturability, or structural integrity. Existing and multi-part
+assembly inspection still routes to the standalone assembly-lint workflow. See the
+[proof-sheet contract](docs/PROOF-SHEETS.md).
+
 ### Model-backed design
 
 Set `OPENAI_API_KEY` in the process environment or an ignored `.envrc`. The browser never receives it. Creating a design with `spec` is deterministic and makes no model call; creating one with `prompt` invokes the structured planner.
@@ -241,6 +268,7 @@ docker/                 isolated OpenSCAD worker
 docs/ARCHITECTURE.md    data flow and trust boundaries
 docs/ASSEMBLY-LINT.md   mandatory existing-assembly agent workflow and trust contract
 docs/MESH-LINT.md       standalone single-mesh topology and orientation workflow
+docs/PROOF-SHEETS.md    explicit high-coverage visual projection review workflow
 docs/SECURITY.md        untrusted-code sandbox contract
 docs/GCODE.md           planned slicer and motion evidence adapter
 ```

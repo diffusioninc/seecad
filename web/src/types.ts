@@ -2,7 +2,14 @@ export type EvidenceClass = "exact" | "bounded" | "heuristic" | "unavailable";
 export type DiagnosticSeverity = "pass" | "caution" | "fail";
 export type RevisionState = "draft" | "compiled" | "analyzed" | "approved";
 export type ViewId = "iso" | "front" | "right" | "top" | "section" | "access";
-export type ExportFormat = "spec" | "scad" | "stl" | "3mf" | "analysis";
+export type ExportFormat =
+  | "spec"
+  | "scad"
+  | "stl"
+  | "3mf"
+  | "analysis"
+  | "proof_sheets"
+  | "proof_sheet_archive";
 
 export interface Vec3 {
   x: number;

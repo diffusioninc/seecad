@@ -34,12 +34,14 @@ from seecad.models import (
     Measurement,
     MeshAnalysis,
     PrintProfile,
+    ProofSheetRequest,
     RevisionResponse,
     Severity,
     canonical_print_profile_bytes,
     print_profile_sha256,
 )
 from seecad.planner import OpenAIPlanner
+from seecad.proof_sheets import build_proof_sheets
 from seecad.scad import ScadGenerator, canonical_spec_bytes
 from seecad.store import ArtifactStore, RevisionRepository
 
@@ -51,6 +53,11 @@ EVIDENCE_BUNDLE_ROLES = (
     "compile_stl",
     "analysis",
     "analysis_profile",
+)
+PROOF_SHEET_ARTIFACT_ROLES = (
+    "proof_sheet_manifest",
+    "proof_sheets",
+    "proof_sheet_archive",
 )
 
 
@@ -375,6 +382,95 @@ class SeeCADService:
         )
         return AnalysisResponse(revision=result_revision, analysis=analysis)
 
+    def generate_proof_sheets(
+        self,
+        design_id: str,
+        revision_id: str,
+        request: ProofSheetRequest,
+    ) -> RevisionResponse:
+        """Create an immutable, opt-in catalog of heuristic 2D mesh projections."""
+
+        revision = self.repository.get_revision(revision_id, design_id=design_id)
+        if revision.spec.schema_version != "1.1":
+            raise ConflictError(
+                "legacy schema 1.0 revisions cannot receive proof sheets; create a "
+                "component-scoped schema 1.1 revision first"
+            )
+        output_config = {
+            "view_count": request.view_count,
+            "resolution_px": request.resolution_px,
+            "views_per_sheet": request.views_per_sheet,
+        }
+        config_bytes = json.dumps(output_config, sort_keys=True, separators=(",", ":")).encode(
+            "utf-8"
+        )
+        config_sha256 = sha256(config_bytes).hexdigest()
+
+        def matches(candidate: RevisionResponse) -> bool:
+            return (
+                all(role in candidate.artifacts for role in PROOF_SHEET_ARTIFACT_ROLES)
+                and candidate.metadata.get("proof_sheet_config_sha256") == config_sha256
+                and candidate.artifacts.get("stl") == revision.artifacts.get("stl")
+            )
+
+        if matches(revision):
+            return revision
+        for candidate in reversed(self.repository.list_revisions(design_id)):
+            if candidate.parent_revision_id == revision.revision_id and matches(candidate):
+                return candidate
+
+        if "stl" not in revision.artifacts:
+            if not request.auto_compile:
+                raise ConflictError("proof sheets require a compiled STL artifact")
+            revision = self.compile_revision(
+                design_id, revision.revision_id, CompileRequest(format="stl")
+            )
+        stl = revision.artifacts["stl"]
+        generated = build_proof_sheets(
+            self.artifacts.get(stl.sha256),
+            design_name=revision.spec.name,
+            mesh_sha256=stl.sha256,
+            view_count=request.view_count,
+            resolution_px=request.resolution_px,
+            views_per_sheet=request.views_per_sheet,
+        )
+        manifest_ref = self.artifacts.put(
+            generated.manifest,
+            media_type="application/json",
+            filename="proof-sheet-manifest.json",
+        )
+        review_ref = self.artifacts.put(
+            generated.review_html,
+            media_type="text/html; charset=utf-8",
+            filename="proof-sheets.html",
+        )
+        archive_ref = self.artifacts.put(
+            generated.archive,
+            media_type="application/zip",
+            filename="proof-sheets.zip",
+        )
+        return self.repository.create_revision(
+            spec=revision.spec,
+            artifacts={
+                **revision.artifacts,
+                "proof_sheet_manifest": manifest_ref,
+                "proof_sheets": review_ref,
+                "proof_sheet_archive": archive_ref,
+            },
+            design_id=design_id,
+            parent_revision_id=revision.revision_id,
+            metadata={
+                **revision.metadata,
+                "event": "proof_sheets_generated",
+                "proof_sheet_confidence": "heuristic",
+                "proof_sheet_config_sha256": config_sha256,
+                "proof_sheet_mesh_sha256": stl.sha256,
+                "proof_sheet_projection_count": request.view_count,
+                "proof_sheet_resolution_px": request.resolution_px,
+                "proof_sheet_views_per_sheet": request.views_per_sheet,
+            },
+        )
+
     def approve_revision(
         self,
         design_id: str,
@@ -389,7 +485,7 @@ class SeeCADService:
             )
         if revision.metadata.get("event") == "approved" or "approval" in revision.artifacts:
             raise ConflictError("revision is already an approval attestation")
-        if revision.metadata.get("event") != "analyzed":
+        if "analysis" not in revision.artifacts or "analysis_profile" not in revision.artifacts:
             raise ConflictError("approval is only available for an analyzed live revision")
 
         required_roles = (
@@ -539,8 +635,11 @@ class SeeCADService:
         """Export the complete evidence set linked by one analyzed revision."""
 
         revision = self.repository.get_revision(revision_id, design_id=design_id)
-        if revision.metadata.get("event") != "analyzed":
+        if "analysis" not in revision.artifacts or "analysis_profile" not in revision.artifacts:
             raise ConflictError("evidence bundle export requires an analyzed revision")
+        bundle_roles = EVIDENCE_BUNDLE_ROLES + tuple(
+            role for role in PROOF_SHEET_ARTIFACT_ROLES if role in revision.artifacts
+        )
         missing_roles = [role for role in EVIDENCE_BUNDLE_ROLES if role not in revision.artifacts]
         if missing_roles:
             raise ConflictError(
@@ -559,7 +658,7 @@ class SeeCADService:
 
         files: dict[str, bytes] = {}
         artifact_entries: list[dict[str, object]] = []
-        for role in EVIDENCE_BUNDLE_ROLES:
+        for role in bundle_roles:
             data, artifact = self.export_revision(design_id, revision_id, role)
             if artifact.filename == "evidence-manifest.json" or artifact.filename in files:
                 raise ConflictError(
