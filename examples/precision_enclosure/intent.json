@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "design_id": "seecad.example.precision-enclosure.v1",
+  "title": "Precision electronics inspection enclosure",
+  "semantic_authority": "intent.json",
+  "reference_realisation": "precision_enclosure.scad",
+  "units": "millimetres",
+  "purpose": "A printable enclosure for a small sensor or controller board with lid removal, probe, calibration-key, USB-C, airflow, and status-light interfaces.",
+  "boolean_strategy": {
+    "sequence": [
+      "positive_volume",
+      "single_consolidated_negative_space"
+    ],
+    "alternating_boolean_history_allowed": false
+  },
+  "parameters": {
+    "outer_size_mm": [86, 62, 24],
+    "base_floor_thickness_mm": 3,
+    "wall_thickness_mm": 3,
+    "lid_thickness_mm": 3,
+    "lid_fit_clearance_per_side_mm": 0.35,
+    "nominal_pcb_size_mm": [54, 32, 1.6],
+    "nominal_pcb_hole_pitch_mm": [48, 26],
+    "lid_insert_type": "NopSCADlib F1BM3"
+  },
+  "positive_features": [
+    "enclosure_floor",
+    "perimeter_walls",
+    "rounded_corner_insert_posts",
+    "pcb_supports",
+    "pcb_datum_rails",
+    "lid_plate",
+    "lid_locating_skirt"
+  ],
+  "negative_features": [
+    "lid_insert_holes",
+    "pcb_mounting_pilot_holes",
+    "usb_c_tool_access_channel",
+    "probe_tool_access_channel",
+    "calibration_tool_access_channel",
+    "lid_fastener_clearance_holes",
+    "sensor_airflow_channels",
+    "status_light_pipe_clearance"
+  ],
+  "checks": [
+    {
+      "classification": "exact",
+      "claim": "The source declares millimetres and asserts the allowed part selector and core dimensional relationships."
+    },
+    {
+      "classification": "exact",
+      "claim": "The design-level CSG is one difference of positive_volume minus negative_space."
+    },
+    {
+      "classification": "bounded",
+      "claim": "The 0.35 mm per-side lid skirt clearance and 3 mm walls target ordinary FDM process variation; printer-specific fit testing is required."
+    },
+    {
+      "classification": "bounded",
+      "claim": "Blind M2 pilot geometry and F1BM3 insert holes use nominal library/tool dimensions; verify against the selected screws, inserts, material, and slicer."
+    },
+    {
+      "classification": "heuristic",
+      "claim": "The split locating skirt, support-free horizontal channels, and airflow slots are intended to improve printability and service access."
+    },
+    {
+      "classification": "heuristic",
+      "claim": "No structural integrity, ingress protection, thermal performance, electrical safety, or manufacturability guarantee is made."
+    }
+  ],
+  "artifact_policy": {
+    "generated_scad_meshes_renders_and_reports_are_derivatives": true,
+    "generated_artifacts_must_be_content_addressed_by_the_engine": true,
+    "generated_artifacts_belong_outside_source_control": true
+  }
+}

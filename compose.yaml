@@ -1,0 +1,97 @@
+services:
+  api:
+    build:
+      context: .
+      args:
+        SEECAD_WORKER_BUILD_SEED: ${SEECAD_WORKER_BUILD_SEED:-compose-v1}
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      SEECAD_MODEL: ${SEECAD_MODEL:-gpt-5.6}
+      SEECAD_REASONING_MODE: ${SEECAD_REASONING_MODE:-pro}
+      SEECAD_REASONING_EFFORT: ${SEECAD_REASONING_EFFORT:-max}
+      SEECAD_DATA_DIR: /data
+      SEECAD_OPENSCAD_MODE: remote
+      SEECAD_OPENSCAD_WORKER_SOCKET: /run/seecad/worker.sock
+      SEECAD_ALLOWED_ORIGINS: http://localhost:5173
+    ports:
+      - "127.0.0.1:8000:8000"
+    read_only: true
+    pids_limit: 128
+    mem_limit: 2g
+    cpus: 2.0
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    ulimits:
+      fsize:
+        soft: 268435456
+        hard: 268435456
+    volumes:
+      - seecad-data:/data
+      - seecad-worker-socket:/run/seecad:ro
+    depends_on:
+      worker:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, python3, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=2)"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  worker:
+    build:
+      context: .
+      args:
+        SEECAD_WORKER_BUILD_SEED: ${SEECAD_WORKER_BUILD_SEED:-compose-v1}
+    command: [seecad-worker]
+    environment:
+      SEECAD_OPENSCAD_WORKER_SOCKET: /run/seecad/worker.sock
+      SEECAD_NOPSCAD_ROOT: /opt/libraries/NopSCADlib
+      SEECAD_OPENSCAD_TIMEOUT_SECONDS: "120"
+      SEECAD_MAX_ARTIFACT_BYTES: "268435456"
+    network_mode: none
+    user: "10001:10001"
+    read_only: true
+    pids_limit: 64
+    mem_limit: 1g
+    cpus: 2.0
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=512m,mode=1777,noexec,nosuid
+      - /home/seecad:size=16m,mode=0700,noexec,nosuid,uid=10001,gid=10001
+    ulimits:
+      core:
+        soft: 0
+        hard: 0
+      fsize:
+        soft: 268435456
+        hard: 268435456
+      nofile:
+        soft: 256
+        hard: 256
+    volumes:
+      - seecad-worker-socket:/run/seecad
+    healthcheck:
+      test: [CMD, seecad-worker-health]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    stop_grace_period: 10s
+
+  web:
+    build:
+      context: web
+    ports:
+      - "127.0.0.1:5173:80"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  seecad-data:
+  seecad-worker-socket:

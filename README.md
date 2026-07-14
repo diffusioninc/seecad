@@ -1,0 +1,159 @@
+# SeeCAD
+
+**A 3D reasoning layer for multimodal agents.**
+
+SeeCAD turns design intent into typed constructive geometry, compiles it in a locked-down OpenSCAD worker, and returns the source, mesh, views, measurements, manufacturability findings, and provenance an agent needs to make the next change without losing the design.
+
+It is not a text-to-STL endpoint. Semantic design intent remains authoritative and every derived artifact is reproducible.
+
+## The core idea
+
+Language models handle OpenSCAD well until the boolean history starts alternating between additions and subtractions. SeeCAD makes the stable workflow structural:
+
+```text
+design intent
+    ├── positive volume       union the material envelope
+    ├── negative space        subtract holes, pockets, and clearances once
+    └── tool access channels  subtract named approach passageways
+```
+
+The compiler always emits one positive phase followed by one consolidated negative phase. A request such as “move the USB opening 2 mm left” targets a named feature, not an ambiguous line in a growing CSG program.
+
+The complete [NopSCADlib](https://github.com/nophead/NopSCADlib) tree is vendored and pinned, giving agents reusable parts, vitamins, fasteners, utilities, and established modeling vocabulary. Safe typed library calls are supported without allowing arbitrary includes or directives.
+
+## What is here
+
+- Typed Pydantic design model with explicit units, material, process, constraints, positive features, negative features, and tool-access channels.
+- Deterministic SCAD generator with a restricted NopSCADlib call surface.
+- Immutable SQLite revision history and SHA-256 content-addressed artifact store.
+- Hardened OpenSCAD engines with time, memory, CPU, PID, network, path, and output bounds. Host development defaults to an ephemeral Docker invocation; Compose uses a dedicated no-network worker over a Unix-domain socket.
+- STL/3MF compilation and a live six-camera inspection rig backed by the compiled STL.
+- Mesh and DFM evidence: triangle and vertex counts, bounded degenerate-triangle detection, bounds, area, volume, components, watertightness, winding consistency, configured build-volume fit, and face-normal overhang burden. Checks that are not actually solved, such as minimum wall thickness, are returned as unavailable.
+- Canonical print-profile evidence and immutable human approval attestations that preserve the exact spec, mesh, compile report, and analysis digest chain.
+- Explicit `exact`, `bounded`, and `heuristic` confidence labels on findings.
+- OpenAI Responses planner using current `gpt-5.6`, structured outputs, original-detail image evidence, pro mode, and max reasoning by default.
+- One service layer exposed through a CLI, FastAPI, and MCP.
+- React/Three.js human review workbench with an interactive viewport, six-view rig, feature phases, constraints, diagnostics, source, and revision comparison.
+- Complete NopSCADlib source, pinned OpenSCAD container, demo fixture, tests, CI, Compose stack, architecture, and security documentation.
+
+## Quick start
+
+Requirements: Docker, Python 3.12+, `uv`, Node 24+, and `pnpm`.
+
+```bash
+make bootstrap
+make demo
+```
+
+`make demo` builds the pinned CAD worker, compiles the precision-enclosure fixture, runs analysis, and writes a reproducible evidence bundle under `.seecad/demo/`. The bundle contains the exact final analyzed revision's `design.json`, `model.scad`, generation `manifest.json`, `model.stl`, `compile-stl.json`, `analysis.json`, and `analysis-profile.json`. `evidence-manifest.json` records the source/compile/analysis revision chain plus every exported role, SHA-256 digest, byte size, media type, filename, and introducing revision.
+
+Run the API and workbench in separate terminals:
+
+```bash
+make serve
+make web
+```
+
+Open `http://localhost:5173`. The API is at `http://localhost:8000`; its OpenAPI explorer is at `/docs`.
+
+Or run the production-shaped local stack:
+
+```bash
+docker compose up --build
+```
+
+In that stack, the API has no local OpenSCAD execution path. It streams SCAD to a single-slot worker through `/run/seecad/worker.sock`; the worker has no network namespace or API key. `auto` mode selects the per-job Docker engine and never falls back to a host binary. Public configuration cannot select local execution; only a private executor constructed inside the isolated worker process can run the container's OpenSCAD binary.
+
+The worker build identity is a `sha256-...` digest derived from the Dockerfile, Python dependency lock, package metadata, worker/runtime source, and an explicit build seed. Before every compile, the API and worker independently revalidate the complete NopSCADlib tree and pinned upstream metadata. The API then validates the protocol and build identity, OpenSCAD version, NopSCADlib revision and tree digest, submitted source digest, and returned artifact digest before accepting a mesh. `/health` is a liveness and dependency-status readout; `/ready` returns `503` whenever storage or the worker is unavailable, and Compose uses that readiness endpoint.
+
+### Model-backed design
+
+Set `OPENAI_API_KEY` in the process environment or an ignored `.envrc`. The browser never receives it. Creating a design with `spec` is deterministic and makes no model call; creating one with `prompt` invokes the structured planner.
+
+```bash
+curl --fail-with-body http://localhost:8000/v1/designs \
+  -H 'content-type: application/json' \
+  -d '{"prompt":"A 90 x 55 x 24 mm sensor enclosure with four M3 corner fasteners, a USB-C opening, and screwdriver access from above.","requested_profile":{"process":"fdm","material":"PETG","nozzle_diameter":0.4,"layer_height":0.2,"minimum_wall":1.6,"minimum_clearance":0.35,"maximum_unsupported_overhang_degrees":45,"build_volume":{"x":220,"y":220,"z":250}},"load_case":"Wall mounted; carry a 2 kg static vertical load."}'
+```
+
+Compilation and analysis are explicit revision operations:
+
+```bash
+curl --fail-with-body -X POST \
+  http://localhost:8000/v1/designs/DESIGN_ID/revisions/REVISION_ID/compile \
+  -H 'content-type: application/json' -d '{"format":"stl"}'
+
+curl --fail-with-body -X POST \
+  http://localhost:8000/v1/designs/DESIGN_ID/revisions/REVISION_ID/analyze \
+  -H 'content-type: application/json' -d '{"auto_compile":true}'
+
+curl --fail-with-body -X POST \
+  http://localhost:8000/v1/designs/DESIGN_ID/revisions/ANALYZED_REVISION_ID/approve \
+  -H 'content-type: application/json' \
+  -d '{"attestor":"Human reviewer","statement":"Reviewed the exact compiled mesh and analysis evidence."}'
+```
+
+### MCP
+
+Start the stdio server directly:
+
+```bash
+make mcp
+```
+
+Example client configuration:
+
+```json
+{
+  "mcpServers": {
+    "seecad": {
+      "command": "uv",
+      "args": ["run", "seecad", "mcp"],
+      "cwd": "/absolute/path/to/seecad"
+    }
+  }
+}
+```
+
+The MCP tools create designs, add revisions, compile, analyze, compare, inspect artifacts, and export evidence. They return compact typed records rather than embedding large binary artifacts in model context.
+
+## Evidence, not false certainty
+
+SeeCAD separates what it knows from what it estimates:
+
+| Trust level | Examples | Meaning |
+| --- | --- | --- |
+| Exact | mesh bounds, volume, area, components, watertightness | Directly computed from a specific artifact |
+| Bounded | current-orientation printer-volume fit | Valid under the recorded printer profile |
+| Heuristic | downward-facing area and support review | A review signal, not proof |
+| Unavailable | minimum wall thickness and structural integrity | Explicitly not solved by the current analyzer |
+
+SeeCAD does not claim structural integrity. It preserves load-case and solver boundaries for a future simulation adapter rather than dressing mesh heuristics up as engineering certification.
+
+## Repository map
+
+```text
+src/seecad/             domain, compiler, engines, storage, analysis, API, CLI, MCP
+web/                    React/Three.js evidence workbench
+examples/               reproducible reference designs
+scripts/compose_smoke.py production API/UDS/STL/3MF/provenance smoke test
+vendor/NopSCADlib/      complete pinned upstream library
+docker/                 isolated OpenSCAD worker
+docs/ARCHITECTURE.md    data flow and trust boundaries
+docs/SECURITY.md        untrusted-code sandbox contract
+docs/GCODE.md           planned slicer and motion evidence adapter
+```
+
+## Development
+
+```bash
+make check          # lint, types, unit tests, frontend test and production build
+make integration    # build the CAD worker and exercise real OpenSCAD
+make format
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) and [AGENTS.md](AGENTS.md) for the invariants contributors and coding agents must preserve.
+
+## License
+
+SeeCAD is GPL-3.0-or-later. The vendored NopSCADlib tree retains its upstream `COPYING` file and exact upstream provenance in `vendor/NopSCADlib.UPSTREAM.json`.

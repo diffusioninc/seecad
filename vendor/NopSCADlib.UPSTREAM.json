@@ -1,0 +1,11 @@
+{
+  "name": "NopSCADlib",
+  "description": "Library of parts modelled in OpenSCAD and a framework for making projects",
+  "upstream": "https://github.com/nophead/NopSCADlib",
+  "revision": "c9baa0ed0faa23e849141c3d8c6728545d6af910",
+  "revision_date": "2025-10-08T17:20:29+01:00",
+  "vendored_date": "2026-07-13",
+  "license": "GPL-3.0-or-later",
+  "tree_sha256": "810daa212a1d6f17c489eb758926d57593020ba810e52eecbffbf445cd0cff53",
+  "layout": "Complete tracked tree from the upstream master branch at revision"
+}
