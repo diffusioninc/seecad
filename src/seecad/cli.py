@@ -7,7 +7,13 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
+from pydantic import ValidationError
 
+from seecad.assembly_lint import (
+    AssemblyLintSpec,
+    lint_assembly,
+    render_assembly_lint_text,
+)
 from seecad.config import get_settings
 from seecad.errors import SeeCADError
 from seecad.models import (
@@ -57,6 +63,73 @@ def _fail(exc: SeeCADError) -> None:
         err=True,
     )
     raise typer.Exit(code=1) from exc
+
+
+@app.command()
+def lint(
+    manifest: Annotated[
+        Path,
+        typer.Argument(help="Assembly lint manifest JSON; every part is one physical instance."),
+    ],
+    output_format: Annotated[
+        str,
+        typer.Option("--format", "-f", help="Output format: json or text."),
+    ] = "json",
+    fail_on: Annotated[
+        str,
+        typer.Option(help="Exit 1 at this severity: error or warning."),
+    ] = "error",
+) -> None:
+    """Enumerate parts and lint fastener tool accessibility without compiling CAD."""
+
+    if output_format not in {"json", "text"} or fail_on not in {"error", "warning"}:
+        _emit(
+            {
+                "status": "invalid",
+                "error": {
+                    "code": "invalid_lint_option",
+                    "message": "--format must be json or text; --fail-on must be error or warning",
+                },
+            }
+        )
+        raise typer.Exit(code=2)
+    try:
+        parsed = AssemblyLintSpec.model_validate_json(manifest.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValidationError) as exc:
+        details = (
+            exc.errors(include_url=False, include_input=False)
+            if isinstance(exc, ValidationError)
+            else [{"type": type(exc).__name__, "message": str(exc)}]
+        )
+        _emit(
+            {
+                "status": "invalid",
+                "error": {
+                    "code": "invalid_assembly_manifest",
+                    "message": f"Could not validate assembly manifest {manifest}",
+                    "details": details,
+                },
+            }
+        )
+        raise typer.Exit(code=2) from exc
+
+    report = lint_assembly(parsed)
+    if output_format == "text":
+        typer.echo(render_assembly_lint_text(report))
+    else:
+        _emit(report)
+    threshold_reached = report.summary.error_count > 0 or (
+        fail_on == "warning" and report.summary.warning_count > 0
+    )
+    if threshold_reached:
+        raise typer.Exit(code=1)
+
+
+@app.command("lint-schema")
+def lint_schema() -> None:
+    """Print the JSON Schema accepted by `seecad lint`."""
+
+    _emit(AssemblyLintSpec.model_json_schema())
 
 
 @app.command()

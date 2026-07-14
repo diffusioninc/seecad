@@ -34,6 +34,34 @@ preload, fit, or structural integrity. See [Assembly geometry safety](ASSEMBLY-S
 
 This avoids alternating boolean histories that are hard for language models to preserve. A generated `.scad` file is an inspectable derivative of the semantic model. Arbitrary hand-written SCAD is deliberately outside the trusted input contract. Historical schema 1.0 revisions remain readable as immutable evidence, but cannot receive new compile, analysis, or approval artifacts.
 
+## Existing-assembly lint contract
+
+Existing or externally sourced assemblies use a separate semantic authority:
+`AssemblyLintSpec`. It does not enter the constructive design/revision pipeline and does not
+compile source CAD. Each manifest declares millimetres, one record per physical instance, a
+conservative assembled-coordinate AABB for every instance, fastener identity/evidence, and linked
+finite tool cones.
+
+```mermaid
+flowchart LR
+    E["Source files + BOM + assembly evidence"] --> L["AssemblyLintSpec in mm"]
+    L --> I["Exact manifest inventory"]
+    L --> T["Bounded cone vs AABB checks"]
+    I --> J["JSON / text lint report"]
+    T --> J
+```
+
+Assembly-lint tool cones are inspection envelopes and never remove geometry. Constructive
+`DesignSpec.tool_access_channels` are scoped negative features and do remove geometry during SCAD
+generation. Agents must route inventory, fastener identification, and existing-assembly driver
+access questions to `seecad lint`; mesh analysis and compilation do not answer those questions.
+
+The linter is exact about the manifest's declared instance register and relationships. Its
+accessibility result is bounded and conservative over the declared AABBs. A clear cone does not
+prove source completeness, exact physical access, assembly sequence, moving-joint clearance, fit,
+preload, thread engagement, manufacturability, or structural integrity. See
+[Assembly linting contract](ASSEMBLY-LINT.md).
+
 ## Revision and evidence pipeline
 
 ```mermaid
@@ -61,6 +89,8 @@ Each artifact is addressed by its SHA-256 digest. Source revisions record the se
 - **React workbench** gives humans the same revision, views, metrics, and findings that the agent sees.
 
 No surface has a private implementation of compile or analysis behavior.
+The pure assembly linter is intentionally CLI-first, stateless, and independent of the design
+service, database, planner, and OpenSCAD worker.
 
 ## OpenSCAD execution boundaries
 

@@ -30,6 +30,7 @@ The complete [NopSCADlib](https://github.com/nophead/NopSCADlib) tree is vendore
 ## What is here
 
 - Typed Pydantic design model with explicit units, physical components, bounded assembly contacts, material, process, constraints, positive features, component-targeted negative features, and tool-access channels.
+- Standalone assembly linter that inventories individual part instances, identifies fasteners and linked tool cones, and performs bounded conservative tool-access checks without compiling CAD.
 - Deterministic SCAD generator with a restricted NopSCADlib call surface.
 - Immutable SQLite revision history and SHA-256 content-addressed artifact store.
 - Hardened OpenSCAD engines with time, memory, CPU, PID, network, path, and output bounds. Host development defaults to an ephemeral Docker invocation; Compose uses a dedicated no-network worker over a Unix-domain socket.
@@ -71,6 +72,37 @@ docker compose up --build
 In that stack, the API has no local OpenSCAD execution path. It streams SCAD to a single-slot worker through `/run/seecad/worker.sock`; the worker has no network namespace or API key. `auto` mode selects the per-job Docker engine and never falls back to a host binary. Public configuration cannot select local execution; only a private executor constructed inside the isolated worker process can run the container's OpenSCAD binary.
 
 The worker build identity is a `sha256-...` digest derived from the Dockerfile, Python dependency lock, package metadata, worker/runtime source, and an explicit build seed. Before every compile, the API and worker independently revalidate the complete NopSCADlib tree and pinned upstream metadata. The API then validates the protocol and build identity, OpenSCAD version, NopSCADlib revision and tree digest, submitted source digest, and returned artifact digest before accepting a mesh. `/health` is a liveness and dependency-status readout; `/ready` returns `503` whenever storage or the worker is unavailable, and Compose uses that readiness endpoint.
+
+### Assembly linting
+
+`seecad lint` checks a semantic manifest directly, so an agent can inspect an
+existing assembly without creating a design, starting the service, or compiling
+untrusted CAD. The normative agent workflow is in the
+[assembly linting contract](docs/ASSEMBLY-LINT.md):
+
+```bash
+uv run seecad lint examples/6dof_robot_arm/assembly.json
+uv run seecad lint examples/6dof_robot_arm/assembly.json --format text
+uv run seecad lint-schema > /tmp/seecad-assembly-lint.schema.json
+```
+
+JSON is the default output. The report always includes every declared physical
+instance, grouped part families, fastener identities, tool-cone identities,
+per-cone blockers, diagnostics, and limitations. A manifest must declare
+`units: "mm"`; repeated parts and fasteners are repeated records rather than a
+quantity hidden behind one item.
+
+Exit status `0` means no finding reached the configured threshold, `1` means a
+lint finding reached it, and `2` means the manifest or CLI options were invalid.
+Use `--fail-on warning` for a stricter automation gate. Accessibility is labeled
+bounded because it conservatively checks finite tool cones against declared
+axis-aligned envelopes; it may produce false obstructions and does not guarantee
+physical access.
+
+The [6DoF robot-arm fixture](examples/6dof_robot_arm/README.md) records the
+published base, small-drive, big-drive, and connector modules, including the
+illustrated M2.5, M3, and M4 fasteners. It keeps source-backed designations
+separate from heuristic drive-tool and approach assumptions.
 
 ### Model-backed design
 
@@ -146,6 +178,7 @@ scripts/compose_smoke.py production API/UDS/STL/3MF/provenance smoke test
 vendor/NopSCADlib/      complete pinned upstream library
 docker/                 isolated OpenSCAD worker
 docs/ARCHITECTURE.md    data flow and trust boundaries
+docs/ASSEMBLY-LINT.md   mandatory existing-assembly agent workflow and trust contract
 docs/SECURITY.md        untrusted-code sandbox contract
 docs/GCODE.md           planned slicer and motion evidence adapter
 ```

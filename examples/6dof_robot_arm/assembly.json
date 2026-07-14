@@ -1,0 +1,429 @@
+{
+  "schema_version": "1.0",
+  "name": "6DoF robot arm module inspection fixture",
+  "intent": "Enumerate the published base, small-drive, big-drive, connector, purchased, and fastener instances and check basic driver access against conservative part envelopes.",
+  "units": "mm",
+  "source_url": "https://www.printables.com/model/971320-6dof-robot-arm-modular-cheap-educational",
+  "source_license": "Creative Commons CC0 / Public Domain",
+  "parts": [
+    {
+      "id": "base_shell",
+      "name": "Printed base shell",
+      "kind": "part",
+      "purpose": "Support the base bearing stack",
+      "part_number": "base",
+      "source_file": "base.stp",
+      "envelope": {"minimum": {"x": -35, "y": -35, "z": 0}, "maximum": {"x": 35, "y": 35, "z": 50}}
+    },
+    {
+      "id": "base_spacer",
+      "name": "Printed base bearing spacer",
+      "kind": "part",
+      "purpose": "Separate the two base bearings",
+      "part_number": "base_spacer",
+      "source_file": "base_spacer.stp",
+      "envelope": {"minimum": {"x": -16, "y": -16, "z": 57}, "maximum": {"x": 16, "y": 16, "z": 64}}
+    },
+    {
+      "id": "base_rotor",
+      "name": "Printed base rotor",
+      "kind": "connector",
+      "purpose": "Transfer base-axis rotation to the next module",
+      "part_number": "base_rotor",
+      "source_file": "base_rotor.stp",
+      "envelope": {"minimum": {"x": -18, "y": -18, "z": 71}, "maximum": {"x": 18, "y": 18, "z": 95}}
+    },
+    {
+      "id": "base_bearing_lower",
+      "name": "Lower base bearing",
+      "kind": "part",
+      "purpose": "Lower radial support in the base stack",
+      "part_number": "bearing 20x32x7",
+      "envelope": {"minimum": {"x": -16, "y": -16, "z": 50}, "maximum": {"x": 16, "y": 16, "z": 57}}
+    },
+    {
+      "id": "base_bearing_upper",
+      "name": "Upper base bearing",
+      "kind": "part",
+      "purpose": "Upper radial support in the base stack",
+      "part_number": "bearing 20x32x7",
+      "envelope": {"minimum": {"x": -16, "y": -16, "z": 64}, "maximum": {"x": 16, "y": 16, "z": 71}}
+    },
+    {
+      "id": "base_axis_screw",
+      "name": "Base axis retaining screw",
+      "kind": "fastener",
+      "purpose": "Retain the illustrated base rotor stack",
+      "part_number": "M2.5x20",
+      "envelope": {"minimum": {"x": -2, "y": -2, "z": 95}, "maximum": {"x": 2, "y": 2, "z": 115}},
+      "fastener": {
+        "designation": "M2.5x20 socket-head screw",
+        "drive": "2 mm hex key (assumed)",
+        "confidence": "heuristic",
+        "basis": "M2.5x20 is labeled in the source illustration; the socket drive and key size are not specified there."
+      }
+    },
+
+    {
+      "id": "drive_small_body",
+      "name": "Printed small-drive body",
+      "kind": "part",
+      "purpose": "House the small servo and bearing",
+      "part_number": "driveSmall",
+      "source_file": "driveSmall.stp",
+      "envelope": {"minimum": {"x": 90, "y": -25, "z": 0}, "maximum": {"x": 125, "y": 25, "z": 45}}
+    },
+    {
+      "id": "drive_small_rotor",
+      "name": "Printed small-drive rotor",
+      "kind": "connector",
+      "purpose": "Transfer torque from the MG90S servo",
+      "part_number": "driveSmall_rotor",
+      "source_file": "driveSmall_rotor.stp",
+      "envelope": {"minimum": {"x": 125, "y": -18, "z": 8}, "maximum": {"x": 145, "y": 18, "z": 38}}
+    },
+    {
+      "id": "drive_small_bearing",
+      "name": "Small-drive bearing",
+      "kind": "part",
+      "purpose": "Support the small-drive rotor",
+      "part_number": "bearing 20x32x7",
+      "envelope": {"minimum": {"x": 145, "y": -16, "z": 10}, "maximum": {"x": 152, "y": 16, "z": 37}}
+    },
+    {
+      "id": "drive_small_servo",
+      "name": "Small-drive servo",
+      "kind": "part",
+      "purpose": "Actuate the small drive directly",
+      "part_number": "MG90S",
+      "envelope": {"minimum": {"x": 70, "y": -14, "z": 5}, "maximum": {"x": 90, "y": 14, "z": 40}}
+    },
+    {
+      "id": "small_servo_mount_upper",
+      "name": "Small servo upper mounting screw",
+      "kind": "fastener",
+      "purpose": "Clamp the MG90S upper mounting tab",
+      "part_number": "M3x10",
+      "envelope": {"minimum": {"x": 78, "y": 14, "z": 30}, "maximum": {"x": 82, "y": 24, "z": 34}},
+      "fastener": {
+        "designation": "M3x10 socket-head screw",
+        "drive": "2.5 mm hex key (assumed)",
+        "confidence": "heuristic",
+        "basis": "M3x10 is labeled in the source illustration; the socket drive and key size are not specified there."
+      }
+    },
+    {
+      "id": "small_servo_mount_lower",
+      "name": "Small servo lower mounting screw",
+      "kind": "fastener",
+      "purpose": "Clamp the MG90S lower mounting tab",
+      "part_number": "M3x10",
+      "envelope": {"minimum": {"x": 78, "y": -24, "z": 12}, "maximum": {"x": 82, "y": -14, "z": 16}},
+      "fastener": {
+        "designation": "M3x10 socket-head screw",
+        "drive": "2.5 mm hex key (assumed)",
+        "confidence": "heuristic",
+        "basis": "M3x10 is labeled in the source illustration; the socket drive and key size are not specified there."
+      }
+    },
+    {
+      "id": "small_rotor_screw",
+      "name": "Small-drive rotor screw",
+      "kind": "fastener",
+      "purpose": "Retain the small-drive rotor",
+      "part_number": "M2.5x16",
+      "envelope": {"minimum": {"x": 152, "y": -2, "z": 20}, "maximum": {"x": 168, "y": 2, "z": 24}},
+      "fastener": {
+        "designation": "M2.5x16 socket-head screw",
+        "drive": "2 mm hex key (assumed)",
+        "confidence": "heuristic",
+        "basis": "M2.5x16 is labeled in the source illustration; the socket drive and key size are not specified there."
+      }
+    },
+
+    {
+      "id": "drive_big_body",
+      "name": "Printed big-drive body",
+      "kind": "part",
+      "purpose": "House the large servo and bearing",
+      "part_number": "driveBig",
+      "source_file": "driveBig.stp",
+      "envelope": {"minimum": {"x": 340, "y": -35, "z": 0}, "maximum": {"x": 380, "y": 35, "z": 60}}
+    },
+    {
+      "id": "drive_big_rotor",
+      "name": "Printed big-drive rotor",
+      "kind": "connector",
+      "purpose": "Transfer torque from the MG996R servo",
+      "part_number": "driveBig_rotor",
+      "source_file": "driveBig_rotor.stp",
+      "envelope": {"minimum": {"x": 380, "y": -22, "z": 12}, "maximum": {"x": 405, "y": 22, "z": 48}}
+    },
+    {
+      "id": "drive_big_bearing",
+      "name": "Big-drive bearing",
+      "kind": "part",
+      "purpose": "Support the big-drive rotor",
+      "part_number": "bearing 20x32x7",
+      "envelope": {"minimum": {"x": 405, "y": -16, "z": 15}, "maximum": {"x": 412, "y": 16, "z": 45}}
+    },
+    {
+      "id": "drive_big_servo",
+      "name": "Big-drive servo",
+      "kind": "part",
+      "purpose": "Actuate the big drive directly",
+      "part_number": "MG996R",
+      "envelope": {"minimum": {"x": 310, "y": -20, "z": 5}, "maximum": {"x": 340, "y": 20, "z": 55}}
+    },
+    {
+      "id": "big_servo_mount_upper_a",
+      "name": "Big servo upper mounting screw A",
+      "kind": "fastener",
+      "purpose": "Clamp the first upper MG996R mounting point",
+      "part_number": "M4x10",
+      "envelope": {"minimum": {"x": 323, "y": 20, "z": 40}, "maximum": {"x": 327, "y": 30, "z": 44}},
+      "fastener": {
+        "designation": "M4x10 socket-head screw",
+        "drive": "3 mm hex key (assumed)",
+        "confidence": "heuristic",
+        "basis": "Two M4x10 screws are labeled in the source illustration; the socket drive and key size are not specified there."
+      }
+    },
+    {
+      "id": "big_servo_mount_upper_b",
+      "name": "Big servo upper mounting screw B",
+      "kind": "fastener",
+      "purpose": "Clamp the second upper MG996R mounting point",
+      "part_number": "M4x10",
+      "envelope": {"minimum": {"x": 328, "y": 20, "z": 46}, "maximum": {"x": 332, "y": 30, "z": 50}},
+      "fastener": {
+        "designation": "M4x10 socket-head screw",
+        "drive": "3 mm hex key (assumed)",
+        "confidence": "heuristic",
+        "basis": "Two M4x10 screws are labeled in the source illustration; the socket drive and key size are not specified there."
+      }
+    },
+    {
+      "id": "big_servo_mount_lower_a",
+      "name": "Big servo lower mounting screw A",
+      "kind": "fastener",
+      "purpose": "Clamp the first lower MG996R mounting point",
+      "part_number": "M4x18",
+      "envelope": {"minimum": {"x": 323, "y": -38, "z": 12}, "maximum": {"x": 327, "y": -20, "z": 16}},
+      "fastener": {
+        "designation": "M4x18 socket-head screw",
+        "drive": "3 mm hex key (assumed)",
+        "confidence": "heuristic",
+        "basis": "Two M4x18 screws are labeled in the source illustration; the socket drive and key size are not specified there."
+      }
+    },
+    {
+      "id": "big_servo_mount_lower_b",
+      "name": "Big servo lower mounting screw B",
+      "kind": "fastener",
+      "purpose": "Clamp the second lower MG996R mounting point",
+      "part_number": "M4x18",
+      "envelope": {"minimum": {"x": 328, "y": -38, "z": 18}, "maximum": {"x": 332, "y": -20, "z": 22}},
+      "fastener": {
+        "designation": "M4x18 socket-head screw",
+        "drive": "3 mm hex key (assumed)",
+        "confidence": "heuristic",
+        "basis": "Two M4x18 screws are labeled in the source illustration; the socket drive and key size are not specified there."
+      }
+    },
+    {
+      "id": "big_rotor_screw",
+      "name": "Big-drive rotor screw",
+      "kind": "fastener",
+      "purpose": "Retain the big-drive rotor",
+      "part_number": "M3x20",
+      "envelope": {"minimum": {"x": 412, "y": -2, "z": 28}, "maximum": {"x": 432, "y": 2, "z": 32}},
+      "fastener": {
+        "designation": "M3x20 socket-head screw",
+        "drive": "2.5 mm hex key (assumed)",
+        "confidence": "heuristic",
+        "basis": "M3x20 is labeled in the source illustration; the socket drive and key size are not specified there."
+      }
+    },
+
+    {
+      "id": "connector_straight_a",
+      "name": "Printed straight connector A",
+      "kind": "connector",
+      "purpose": "Connect two drive modules with a straight link",
+      "part_number": "connector_straight",
+      "source_file": "connector_straight.stp",
+      "envelope": {"minimum": {"x": 550, "y": -20, "z": 0}, "maximum": {"x": 590, "y": 20, "z": 100}}
+    },
+    {
+      "id": "connector_straight_b",
+      "name": "Printed straight connector B",
+      "kind": "connector",
+      "purpose": "Second physical instance of the straight link",
+      "part_number": "connector_straight",
+      "source_file": "connector_straight.stp",
+      "envelope": {"minimum": {"x": 600, "y": -20, "z": 0}, "maximum": {"x": 640, "y": 20, "z": 100}}
+    },
+    {
+      "id": "connector_corner",
+      "name": "Printed corner connector",
+      "kind": "connector",
+      "purpose": "Connect drive modules at a right angle",
+      "part_number": "connector_corner",
+      "source_file": "connector_corner.stp",
+      "envelope": {"minimum": {"x": 650, "y": -35, "z": 0}, "maximum": {"x": 705, "y": 35, "z": 55}}
+    },
+    {
+      "id": "connector_joiner_screw",
+      "name": "Representative module joining screw",
+      "kind": "fastener",
+      "purpose": "Represent the mostly M3x10 fasteners joining modules",
+      "part_number": "M3x10",
+      "envelope": {"minimum": {"x": 568, "y": 20, "z": 48}, "maximum": {"x": 572, "y": 30, "z": 52}},
+      "fastener": {
+        "designation": "M3x10 socket-head screw",
+        "drive": "2.5 mm hex key (assumed)",
+        "confidence": "heuristic",
+        "basis": "The source says module connections use M3 screws of varying lengths, mostly M3x10; the drive is not specified."
+      }
+    }
+  ],
+  "tool_access_cones": [
+    {
+      "id": "base_axis_driver",
+      "name": "Base axis driver cone",
+      "fastener_id": "base_axis_screw",
+      "tip": {"x": 0, "y": 0, "z": 115},
+      "axis": {"x": 0, "y": 0, "z": 1},
+      "reach_mm": 60,
+      "tool_diameter_mm": 4,
+      "clearance_mm": 0.75,
+      "approach_half_angle_degrees": 3,
+      "tool": "2 mm hex key (assumed)",
+      "rationale": "Approach the base retaining screw along the illustrated base axis."
+    },
+    {
+      "id": "small_servo_upper_driver",
+      "name": "Small servo upper driver cone",
+      "fastener_id": "small_servo_mount_upper",
+      "tip": {"x": 80, "y": 24, "z": 32},
+      "axis": {"x": 0, "y": 1, "z": 0},
+      "reach_mm": 50,
+      "tool_diameter_mm": 5,
+      "clearance_mm": 0.75,
+      "approach_half_angle_degrees": 2,
+      "tool": "2.5 mm hex key (assumed)",
+      "rationale": "Approach the external upper servo tab from outside the module."
+    },
+    {
+      "id": "small_servo_lower_driver",
+      "name": "Small servo lower driver cone",
+      "fastener_id": "small_servo_mount_lower",
+      "tip": {"x": 80, "y": -24, "z": 14},
+      "axis": {"x": 0, "y": -1, "z": 0},
+      "reach_mm": 50,
+      "tool_diameter_mm": 5,
+      "clearance_mm": 0.75,
+      "approach_half_angle_degrees": 2,
+      "tool": "2.5 mm hex key (assumed)",
+      "rationale": "Approach the external lower servo tab from outside the module."
+    },
+    {
+      "id": "small_rotor_driver",
+      "name": "Small rotor driver cone",
+      "fastener_id": "small_rotor_screw",
+      "tip": {"x": 168, "y": 0, "z": 22},
+      "axis": {"x": 1, "y": 0, "z": 0},
+      "reach_mm": 60,
+      "tool_diameter_mm": 4,
+      "clearance_mm": 0.75,
+      "approach_half_angle_degrees": 3,
+      "tool": "2 mm hex key (assumed)",
+      "rationale": "Approach along the small rotor axis from its exposed end."
+    },
+    {
+      "id": "big_servo_upper_a_driver",
+      "name": "Big servo upper A driver cone",
+      "fastener_id": "big_servo_mount_upper_a",
+      "tip": {"x": 325, "y": 30, "z": 42},
+      "axis": {"x": 0, "y": 1, "z": 0},
+      "reach_mm": 60,
+      "tool_diameter_mm": 6,
+      "clearance_mm": 0.75,
+      "approach_half_angle_degrees": 2,
+      "tool": "3 mm hex key (assumed)",
+      "rationale": "Approach the first external upper servo mount."
+    },
+    {
+      "id": "big_servo_upper_b_driver",
+      "name": "Big servo upper B driver cone",
+      "fastener_id": "big_servo_mount_upper_b",
+      "tip": {"x": 330, "y": 30, "z": 48},
+      "axis": {"x": 0, "y": 1, "z": 0},
+      "reach_mm": 60,
+      "tool_diameter_mm": 6,
+      "clearance_mm": 0.75,
+      "approach_half_angle_degrees": 2,
+      "tool": "3 mm hex key (assumed)",
+      "rationale": "Approach the second external upper servo mount."
+    },
+    {
+      "id": "big_servo_lower_a_driver",
+      "name": "Big servo lower A driver cone",
+      "fastener_id": "big_servo_mount_lower_a",
+      "tip": {"x": 325, "y": -38, "z": 14},
+      "axis": {"x": 0, "y": -1, "z": 0},
+      "reach_mm": 60,
+      "tool_diameter_mm": 6,
+      "clearance_mm": 0.75,
+      "approach_half_angle_degrees": 2,
+      "tool": "3 mm hex key (assumed)",
+      "rationale": "Approach the first external lower servo mount."
+    },
+    {
+      "id": "big_servo_lower_b_driver",
+      "name": "Big servo lower B driver cone",
+      "fastener_id": "big_servo_mount_lower_b",
+      "tip": {"x": 330, "y": -38, "z": 20},
+      "axis": {"x": 0, "y": -1, "z": 0},
+      "reach_mm": 60,
+      "tool_diameter_mm": 6,
+      "clearance_mm": 0.75,
+      "approach_half_angle_degrees": 2,
+      "tool": "3 mm hex key (assumed)",
+      "rationale": "Approach the second external lower servo mount."
+    },
+    {
+      "id": "big_rotor_driver",
+      "name": "Big rotor driver cone",
+      "fastener_id": "big_rotor_screw",
+      "tip": {"x": 432, "y": 0, "z": 30},
+      "axis": {"x": 1, "y": 0, "z": 0},
+      "reach_mm": 70,
+      "tool_diameter_mm": 5,
+      "clearance_mm": 0.75,
+      "approach_half_angle_degrees": 3,
+      "tool": "2.5 mm hex key (assumed)",
+      "rationale": "Approach along the big rotor axis from its exposed end."
+    },
+    {
+      "id": "connector_joiner_driver",
+      "name": "Connector joiner driver cone",
+      "fastener_id": "connector_joiner_screw",
+      "tip": {"x": 570, "y": 30, "z": 50},
+      "axis": {"x": 0, "y": 1, "z": 0},
+      "reach_mm": 60,
+      "tool_diameter_mm": 5,
+      "clearance_mm": 0.75,
+      "approach_half_angle_degrees": 3,
+      "tool": "2.5 mm hex key (assumed)",
+      "rationale": "Represent an external radial approach to a module-joining screw."
+    }
+  ],
+  "assumptions": [
+    "This is a source-based module inspection fixture, not a claim about the exact pictured 6DoF build BOM.",
+    "Every envelope is a simplified conservative proxy expressed in millimetres, not a bound extracted from the STEP files.",
+    "Fastener designations come from the source illustration; socket drive types, key sizes, and approach directions are heuristic assumptions.",
+    "Tool accessibility is checked only in this static arrangement; joint motion, fit, preload, thread engagement, manufacturability, and structural integrity remain unverified."
+  ]
+}
