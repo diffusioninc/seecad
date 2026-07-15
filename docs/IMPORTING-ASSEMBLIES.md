@@ -11,13 +11,16 @@ Classify the request by the authority the user needs, not by the file extension:
 
 | User intent | Route | Trust boundary |
 | --- | --- | --- |
+| Orient around a local source pack before choosing a workflow | [`seecad observe`](SOURCE-OBSERVATION.md) | Read-only source records, parsed scene nodes, AABBs, unit evidence, and route hints |
 | Open, display, orbit, or visually review an existing OBJ assembly | `/import.html` | Read-only visual preview; source units may remain undeclared |
 | Inventory an assembly, identify fasteners, lint relationships, or check tool access | [`seecad lint`](ASSEMBLY-LINT.md) | Exact to the manifest; tool cones are bounded |
 | Check topology or print orientation for one standalone mesh | [`seecad mesh-lint`](MESH-LINT.md) | Exact/bounded/heuristic mesh evidence with explicit units |
 | Generate or revise authoritative constructive geometry | `DesignSpec` and immutable revisions | Semantic design intent is authoritative |
 
-Use the preview path first when the request is only to open or display downloaded CAD. Do not ask
-for units merely to render it. Keep the coordinate values unitless in labels and show
+Use `seecad observe` first when an agent needs a quick source-file inventory, parsed scene-node
+list, transformed AABBs, or next-route hint. Use the preview path when the request is only to open
+or display downloaded CAD. Do not ask for units merely to render it. Keep the coordinate values
+unitless in labels and show
 `source units undeclared`. If the human explicitly confirms that the source coordinates are
 millimetres, the preview may label the same unscaled values as millimetres. That declaration applies
 only to the current preview; it does not create a design, manifest, or analysis record.

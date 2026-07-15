@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import base64
+import binascii
 from functools import lru_cache
 from typing import Any, Literal
 
 from mcp.server.fastmcp import FastMCP
 
 from seecad.config import get_settings
+from seecad.errors import AnalysisError
 from seecad.models import (
     CompareRequest,
     CompileRequest,
@@ -19,6 +21,8 @@ from seecad.models import (
     ProofSheetRequest,
 )
 from seecad.service import SeeCADService
+from seecad.source_observe import MAX_OBSERVE_BYTES, MAX_OBSERVE_FILES
+from seecad.source_observe import observe_source_payloads as observe_payloads
 
 mcp = FastMCP("SeeCAD")
 
@@ -138,6 +142,49 @@ def compare_designs(left_revision_id: str, right_revision_id: str) -> dict[str, 
         )
         .model_dump(mode="json")
     )
+
+
+@mcp.tool()
+def observe_source_payloads(
+    files: list[dict[str, str]],
+    declared_units: Literal["mm"] | None = None,
+    file_limit: int = MAX_OBSERVE_FILES,
+) -> dict[str, Any]:
+    """Observe bounded 3D source payloads without reading arbitrary server paths."""
+
+    if len(files) > file_limit:
+        raise AnalysisError(
+            "source observation file limit exceeded",
+            details={"file_limit": file_limit},
+        )
+    max_base64_length = ((MAX_OBSERVE_BYTES + 2) // 3) * 4
+    payloads: list[tuple[str, bytes]] = []
+    for index, source in enumerate(files):
+        filename = source.get("filename")
+        content_base64 = source.get("content_base64")
+        if not filename or not content_base64:
+            raise AnalysisError(
+                "source payload must include non-empty filename and content_base64 fields",
+                details={"index": index},
+            )
+        if len(content_base64) > max_base64_length:
+            raise AnalysisError(
+                "source payload exceeds observation limit",
+                details={"index": index, "limit_bytes": MAX_OBSERVE_BYTES},
+            )
+        try:
+            content = base64.b64decode(content_base64, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise AnalysisError(
+                "source payload content_base64 is not valid base64",
+                details={"index": index},
+            ) from exc
+        payloads.append((filename, content))
+    return observe_payloads(
+        payloads,
+        declared_units=declared_units,
+        file_limit=file_limit,
+    ).model_dump(mode="json")
 
 
 @mcp.tool()

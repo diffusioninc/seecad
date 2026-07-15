@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 import typer
 from pydantic import ValidationError
@@ -42,6 +42,11 @@ from seecad.models import (
     Vec3,
 )
 from seecad.service import SeeCADService
+from seecad.source_observe import (
+    MAX_OBSERVE_FILES,
+    observe_sources,
+    render_source_observation_text,
+)
 
 app = typer.Typer(
     name="seecad",
@@ -248,6 +253,62 @@ def mesh_lint_profile_schema() -> None:
     """Print the JSON Schema required by `seecad mesh-lint --profile`."""
 
     _emit(PrintProfile.model_json_schema())
+
+
+@app.command("observe")
+def observe(
+    source: Annotated[
+        list[Path],
+        typer.Argument(
+            exists=True,
+            help="Local mesh/source file or directory to observe without creating CAD authority.",
+        ),
+    ],
+    output_format: Annotated[
+        str,
+        typer.Option("--format", "-f", help="Output format: json or text."),
+    ] = "json",
+    recursive: Annotated[
+        bool,
+        typer.Option(help="Recurse into directory inputs."),
+    ] = False,
+    units: Annotated[
+        str | None,
+        typer.Option(
+            "--units",
+            help="Optional explicit source-coordinate unit declaration; only mm is accepted.",
+        ),
+    ] = None,
+    file_limit: Annotated[
+        int,
+        typer.Option("--file-limit", min=1, max=256, help="Maximum local files to inspect."),
+    ] = MAX_OBSERVE_FILES,
+) -> None:
+    """Observe local 3D source files before choosing preview, mesh lint, or assembly lint."""
+
+    if output_format not in {"json", "text"}:
+        _invalid("invalid_observe_option", "--format must be json or text")
+    if units not in {None, "mm"}:
+        _invalid(
+            "invalid_observe_units",
+            "--units may only be omitted or set explicitly to mm",
+            details={"provided_units": units},
+        )
+    try:
+        declared_units: Literal["mm"] | None = "mm" if units == "mm" else None
+        report = observe_sources(
+            source,
+            recursive=recursive,
+            declared_units=declared_units,
+            file_limit=file_limit,
+        )
+    except AnalysisError as exc:
+        _invalid(exc.code, exc.message, details=exc.details)
+
+    if output_format == "text":
+        typer.echo(render_source_observation_text(report))
+    else:
+        _emit(report)
 
 
 @app.command()

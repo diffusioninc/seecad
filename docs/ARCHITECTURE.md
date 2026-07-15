@@ -34,6 +34,30 @@ preload, fit, or structural integrity. See [Assembly geometry safety](ASSEMBLY-S
 
 This avoids alternating boolean histories that are hard for language models to preserve. A generated `.scad` file is an inspectable derivative of the semantic model. Arbitrary hand-written SCAD is deliberately outside the trusted input contract. Historical schema 1.0 revisions remain readable as immutable evidence, but cannot receive new compile, analysis, or approval artifacts.
 
+## Source observation boundary
+
+Externally sourced 3D files often arrive before an agent knows whether it is looking at one mesh,
+an assembly scene, or an unsupported CAD export. `seecad observe` is the lightweight, read-only
+bridge for that moment. It accepts local source files or directories, hashes bounded inputs,
+parses supported triangle formats, and reports scene nodes, geometry records, transforms, and
+source-coordinate AABBs.
+
+```mermaid
+flowchart LR
+    F["Local source files"] --> O["seecad observe"]
+    O --> R["Route hint"]
+    R --> P["Browser preview"]
+    R --> M["Single mesh lint"]
+    R --> A["Reviewed AssemblyLintSpec"]
+```
+
+The observation report does not create a design revision, compile CAD, normalize units, repair
+meshes, or promote parser groups to physical parts. Source nodes, OBJ objects, materials, geometry
+records, and disconnected shells are exact only with respect to parser output. They are useful
+evidence for drafting a reviewed manifest, but never replace `AssemblyLintSpec` when the user asks
+for inventory, fastener identification, relationships, or tool access. See
+[Source observation](SOURCE-OBSERVATION.md).
+
 ## Existing-assembly lint contract
 
 Existing or externally sourced assemblies use a separate semantic authority:

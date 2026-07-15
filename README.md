@@ -56,6 +56,7 @@ The central inspection flow remains available on a narrow screen; project detail
 ## What is here
 
 - Typed Pydantic design model with explicit units, physical components, bounded assembly contacts, material, process, constraints, positive features, component-targeted negative features, and tool-access channels.
+- Read-only source observation that inventories supported local 3D files, parsed scene instances, transforms, bounds, unit evidence, and next-route hints without creating CAD authority.
 - Standalone assembly linter that inventories individual part instances, identifies fasteners and linked tool cones, and performs bounded conservative tool-access checks without compiling CAD.
 - Browser-local read-only OBJ/MTL assembly preview that preserves source visual groups without uploading CAD, inferring units, or creating a design revision.
 - Deterministic SCAD generator with a restricted NopSCADlib call surface.
@@ -101,6 +102,24 @@ docker compose up --build
 In that stack, the API has no local OpenSCAD execution path. It streams SCAD to a single-slot worker through `/run/seecad/worker.sock`; the worker has no network namespace or API key. `auto` mode selects the per-job Docker engine and never falls back to a host binary. Public configuration cannot select local execution; only a private executor constructed inside the isolated worker process can run the container's OpenSCAD binary.
 
 The worker build identity is a `sha256-...` digest derived from the Dockerfile, Python dependency lock, package metadata, worker/runtime source, and an explicit build seed. Before every compile, the API and worker independently revalidate the complete NopSCADlib tree and pinned upstream metadata. The API then validates the protocol and build identity, OpenSCAD version, NopSCADlib revision and tree digest, submitted source digest, and returned artifact digest before accepting a mesh. `/health` is a liveness and dependency-status readout; `/ready` returns `503` whenever storage or the worker is unavailable, and Compose uses that readiness endpoint.
+
+### Source observation
+
+`seecad observe` is the fast first pass for local 3D source packs. It reads supported mesh/source
+files, reports SHA-256 digests, parsed scene nodes, transforms, source-coordinate AABBs, unit
+evidence, and a `route_hint` for the next workflow. It never creates a `DesignSpec`, compiles CAD,
+normalizes units, repairs meshes, or treats visual groups as physical parts.
+
+```bash
+uv run seecad observe downloaded-cad/
+uv run seecad observe assembly.glb --format text
+uv run seecad observe part.stl --units mm
+```
+
+Use it to decide whether a source is a single-mesh lint candidate, needs visual preview, or needs a
+reviewed assembly-lint manifest. If a human or source package explicitly declares millimetres,
+`--units mm` records that evidence; otherwise bounds remain `source coordinates`. See the
+[source-observation contract](docs/SOURCE-OBSERVATION.md).
 
 ### Assembly linting
 
@@ -241,7 +260,9 @@ Example client configuration:
 }
 ```
 
-The MCP tools create designs, add revisions, compile, analyze, compare, inspect artifacts, and export evidence. They return compact typed records rather than embedding large binary artifacts in model context.
+The MCP tools create designs, add revisions, compile, analyze, observe bounded source payloads,
+compare, inspect artifacts, and export evidence. They return compact typed records rather than
+embedding large binary artifacts in model context.
 
 ## Evidence, not false certainty
 
@@ -266,6 +287,7 @@ scripts/compose_smoke.py production API/UDS/STL/3MF/provenance smoke test
 vendor/NopSCADlib/      complete pinned upstream library
 docker/                 isolated OpenSCAD worker
 docs/ARCHITECTURE.md    data flow and trust boundaries
+docs/SOURCE-OBSERVATION.md read-only source-bundle observation workflow
 docs/ASSEMBLY-LINT.md   mandatory existing-assembly agent workflow and trust contract
 docs/MESH-LINT.md       standalone single-mesh topology and orientation workflow
 docs/PROOF-SHEETS.md    explicit high-coverage visual projection review workflow
